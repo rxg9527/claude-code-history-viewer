@@ -40,6 +40,15 @@ struct CachedSearchResult {
     results: Vec<ClaudeMessage>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SearchScope {
+    Text,
+    TextThinking,
+    TextTools,
+    TextToolResults,
+    All,
+}
+
 /// Called by the file watcher when session files change.
 pub fn invalidate_search_cache() {
     CACHE_GENERATION.fetch_add(1, Ordering::Release);
@@ -66,6 +75,76 @@ fn search_in_value(value: &serde_json::Value, matcher: &AhoCorasick) -> bool {
     }
 }
 
+fn search_named_string(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    matcher: &AhoCorasick,
+) -> bool {
+    obj.get(key)
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|value| matcher.is_match(value))
+}
+
+fn content_matches_scope(
+    value: &serde_json::Value,
+    matcher: &AhoCorasick,
+    scope: SearchScope,
+) -> bool {
+    if scope == SearchScope::All {
+        return search_in_value(value, matcher);
+    }
+
+    match value {
+        serde_json::Value::String(s) => matcher.is_match(s),
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .any(|item| content_matches_scope(item, matcher, scope)),
+        serde_json::Value::Object(obj) => object_matches_scope(obj, matcher, scope),
+        _ => false,
+    }
+}
+
+fn object_matches_scope(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    matcher: &AhoCorasick,
+    scope: SearchScope,
+) -> bool {
+    let item_type = obj
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+
+    let text_match = search_named_string(obj, "text", matcher);
+    let thinking_match = matches!(scope, SearchScope::TextThinking)
+        && (search_named_string(obj, "thinking", matcher)
+            || search_named_string(obj, "reasoning", matcher)
+            || search_named_string(obj, "summary", matcher));
+
+    let tool_call_match = matches!(scope, SearchScope::TextTools)
+        && matches!(item_type, "tool_use" | "server_tool_use" | "mcp_tool_use")
+        && search_in_value(&serde_json::Value::Object(obj.clone()), matcher);
+
+    let tool_result_match = matches!(scope, SearchScope::TextToolResults)
+        && (item_type.contains("tool_result") || item_type.contains("code_execution"))
+        && search_in_value(&serde_json::Value::Object(obj.clone()), matcher);
+
+    text_match || thinking_match || tool_call_match || tool_result_match
+}
+
+fn parse_search_scope(filters: &serde_json::Value) -> SearchScope {
+    filters
+        .get("searchScope")
+        .and_then(serde_json::Value::as_str)
+        .map(|scope| match scope {
+            "text" => SearchScope::Text,
+            "textThinking" => SearchScope::TextThinking,
+            "textTools" => SearchScope::TextTools,
+            "textToolResults" => SearchScope::TextToolResults,
+            _ => SearchScope::All,
+        })
+        .unwrap_or(SearchScope::All)
+}
+
 /// Build an aho-corasick matcher for case-insensitive single-pattern search.
 /// Uses ASCII case-insensitive mode (sufficient for most search queries).
 fn build_matcher(query: &str) -> AhoCorasick {
@@ -90,7 +169,11 @@ fn extract_project_name(file_path: &PathBuf) -> Option<String> {
 /// Uses a reusable buffer to avoid repeated heap allocations during JSON parsing.
 /// Accepts a pre-built `AhoCorasick` matcher to avoid rebuilding per file.
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessage> {
+fn search_in_file(
+    file_path: &PathBuf,
+    matcher: &AhoCorasick,
+    search_scope: SearchScope,
+) -> Vec<ClaudeMessage> {
     let project_name = extract_project_name(file_path);
 
     let file = match fs::File::open(file_path) {
@@ -134,13 +217,7 @@ fn search_in_file(file_path: &PathBuf, matcher: &AhoCorasick) -> Vec<ClaudeMessa
         };
 
         // Use aho-corasick for case-insensitive matching without heap allocation
-        let matches = match &message_content.content {
-            serde_json::Value::String(s) => matcher.is_match(s),
-            serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                search_in_value(&message_content.content, matcher)
-            }
-            _ => false,
-        };
+        let matches = content_matches_scope(&message_content.content, matcher, search_scope);
 
         if !matches {
             continue;
@@ -268,6 +345,17 @@ pub(crate) fn validate_search_filters(filters: &serde_json::Value) -> Result<(),
         return Ok(());
     };
 
+    if let Some(search_scope) = obj.get("searchScope").and_then(serde_json::Value::as_str) {
+        if !matches!(
+            search_scope,
+            "text" | "textThinking" | "textTools" | "textToolResults" | "all"
+        ) {
+            return Err(format!(
+                "Invalid searchScope filter: {search_scope} (expected text, textThinking, textTools, textToolResults, or all)"
+            ));
+        }
+    }
+
     let Some(date_range) = obj.get("dateRange").and_then(serde_json::Value::as_array) else {
         return Ok(());
     };
@@ -386,6 +474,30 @@ pub fn apply_search_filters(
         .collect()
 }
 
+pub fn apply_search_filters_for_query(
+    messages: Vec<ClaudeMessage>,
+    filters: &serde_json::Value,
+    query: &str,
+) -> Vec<ClaudeMessage> {
+    let search_scope = parse_search_scope(filters);
+    if search_scope == SearchScope::All {
+        return apply_search_filters(messages, filters);
+    }
+
+    let matcher = build_matcher(query);
+
+    messages
+        .into_iter()
+        .filter(|message| matches_filters(message, filters))
+        .filter(|message| {
+            message
+                .content
+                .as_ref()
+                .is_some_and(|content| content_matches_scope(content, &matcher, search_scope))
+        })
+        .collect()
+}
+
 #[tauri::command]
 pub async fn search_messages(
     claude_path: String,
@@ -427,10 +539,11 @@ pub async fn search_messages(
     eprintln!("🔍 search_messages: searching {} files", file_paths.len());
 
     let matcher = build_matcher(&query);
+    let search_scope = parse_search_scope(&filters);
 
     let mut filtered: Vec<ClaudeMessage> = file_paths
         .par_iter()
-        .flat_map(|path| search_in_file(path, &matcher))
+        .flat_map(|path| search_in_file(path, &matcher, search_scope))
         .collect();
 
     filtered = apply_search_filters(filtered, &filters);
@@ -481,6 +594,16 @@ mod tests {
     fn create_sample_assistant_message(uuid: &str, session_id: &str, content: &str) -> String {
         format!(
             r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":[{{"type":"text","text":"{content}"}}],"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#
+        )
+    }
+
+    fn create_sample_assistant_message_with_content(
+        uuid: &str,
+        session_id: &str,
+        content: &str,
+    ) -> String {
+        format!(
+            r#"{{"uuid":"{uuid}","sessionId":"{session_id}","timestamp":"2025-06-26T10:01:00Z","type":"assistant","message":{{"role":"assistant","content":{content},"id":"msg_123","model":"claude-opus-4-20250514","usage":{{"input_tokens":100,"output_tokens":50}}}}}}"#
         )
     }
 
@@ -608,5 +731,61 @@ mod tests {
             .err()
             .unwrap_or_default()
             .contains("Invalid dateRange start"));
+    }
+
+    #[tokio::test]
+    async fn test_search_scope_text_excludes_tool_results() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let content = create_sample_assistant_message_with_content(
+            "uuid-1",
+            "session-1",
+            r#"[{"type":"text","text":"plain response"},{"type":"tool_result","content":"needle from command output"}]"#,
+        );
+
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "needle".to_string(),
+            serde_json::json!({"searchScope": "text"}),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_search_scope_tool_results_matches_tool_results() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let content = create_sample_assistant_message_with_content(
+            "uuid-1",
+            "session-1",
+            r#"[{"type":"text","text":"plain response"},{"type":"tool_result","content":"needle from command output"}]"#,
+        );
+
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "needle".to_string(),
+            serde_json::json!({"searchScope": "textToolResults"}),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
     }
 }

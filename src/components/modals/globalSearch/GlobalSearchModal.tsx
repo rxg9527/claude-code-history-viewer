@@ -26,6 +26,14 @@ import { toast } from "sonner";
 type GlobalSearchResult = ClaudeMessage;
 
 type MessageTypeFilter = "all" | "user" | "assistant";
+type SearchScopeFilter = "text" | "textThinking" | "textTools" | "textToolResults" | "all";
+
+type PreviewKind = "text" | "thinking" | "tool" | "toolResult" | "structured";
+
+interface PreviewPart {
+    kind: PreviewKind;
+    text: string;
+}
 
 interface GlobalSearchModalProps {
     isOpen: boolean;
@@ -44,6 +52,7 @@ export const GlobalSearchModal = ({
     const [isSearching, setIsSearching] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
+    const [searchScope, setSearchScope] = useState<SearchScopeFilter>("text");
     const inputRef = useRef<HTMLInputElement>(null);
     const resultsContainerRef = useRef<HTMLDivElement>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -112,6 +121,7 @@ export const GlobalSearchModal = ({
                 if (messageTypeFilter !== "all") {
                     filters.messageType = messageTypeFilter;
                 }
+                filters.searchScope = searchScope;
                 const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
                 const searchResults = await api<GlobalSearchResult[]>(
                     hasNonClaudeProviders ? "search_all_providers" : "search_messages",
@@ -129,7 +139,7 @@ export const GlobalSearchModal = ({
                 setIsSearching(false);
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, searchScope],
     );
 
     // Handle input change with debounce
@@ -269,6 +279,7 @@ export const GlobalSearchModal = ({
             setSelectedIndex(0);
             setSelectedProjectPath("all");
             setMessageTypeFilter("all");
+            setSearchScope("text");
         }
     }, [isOpen]);
 
@@ -291,44 +302,113 @@ export const GlobalSearchModal = ({
         };
     }, []);
 
-    // Get preview text centered around the search term
-    const getPreviewText = (message: GlobalSearchResult): string => {
-        if (!message.content) return t("globalSearch.noPreview");
+    const stringifyPreviewValue = (value: unknown): string => {
+        if (typeof value === "string") return value;
+        if (value == null) return "";
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
+    };
 
-        const content = message.content;
-        let fullText = "";
+    const pushPreviewPart = (parts: PreviewPart[], kind: PreviewKind, value: unknown): void => {
+        const text = stringifyPreviewValue(value).trim();
+        if (text) parts.push({ kind, text });
+    };
+
+    const collectPreviewParts = (content: GlobalSearchResult["content"]): PreviewPart[] => {
+        const parts: PreviewPart[] = [];
 
         if (typeof content === "string") {
-            fullText = content;
-        } else if (Array.isArray(content)) {
-            const texts: string[] = [];
-            for (const item of content as ContentItem[]) {
-                if (item.type === "text" && "text" in item) {
-                    texts.push(item.text as string);
-                }
-            }
-            fullText = texts.join(" ");
+            pushPreviewPart(parts, "text", content);
+            return parts;
         }
 
-        if (!fullText) return t("globalSearch.noPreview");
+        if (!Array.isArray(content)) return parts;
 
-        // Find search term position and show surrounding context
+        for (const item of content as ContentItem[]) {
+            if (typeof item === "string") {
+                pushPreviewPart(parts, "text", item);
+                continue;
+            }
+
+            if (!item || typeof item !== "object") continue;
+
+            const record = item as Record<string, unknown>;
+            const itemType = typeof record.type === "string" ? record.type : "";
+
+            if (typeof record.text === "string") {
+                pushPreviewPart(parts, "text", record.text);
+            }
+            if (typeof record.thinking === "string") {
+                pushPreviewPart(parts, "thinking", record.thinking);
+            }
+            if (typeof record.reasoning === "string") {
+                pushPreviewPart(parts, "thinking", record.reasoning);
+            }
+
+            if (["tool_use", "server_tool_use", "mcp_tool_use"].includes(itemType)) {
+                pushPreviewPart(parts, "tool", {
+                    name: record.name ?? record.tool_name,
+                    server: record.server_name,
+                    input: record.input ?? record.arguments,
+                });
+            }
+
+            if (itemType.includes("tool_result") || itemType.includes("code_execution")) {
+                pushPreviewPart(parts, "toolResult", record.content ?? record);
+            }
+
+            if (itemType === "document" || itemType === "search_result" || itemType === "web_search_tool_result") {
+                pushPreviewPart(parts, "structured", record.title ?? record.content ?? record.source ?? record);
+            }
+        }
+
+        return parts;
+    };
+
+    const getPreviewLabel = (kind: PreviewKind): string => {
+        if (kind === "thinking") return t("globalSearch.preview.thinking");
+        if (kind === "tool") return t("globalSearch.preview.tool");
+        if (kind === "toolResult") return t("globalSearch.preview.toolResult");
+        if (kind === "structured") return t("globalSearch.preview.structured");
+        return "";
+    };
+
+    const clipPreview = (text: string): string => {
         const trimmedQuery = query.trim().toLowerCase();
         if (trimmedQuery.length >= 2) {
-            const lowerText = fullText.toLowerCase();
+            const lowerText = text.toLowerCase();
             const matchIndex = lowerText.indexOf(trimmedQuery);
             if (matchIndex !== -1) {
                 const contextRadius = 60;
                 const start = Math.max(0, matchIndex - contextRadius);
-                const end = Math.min(fullText.length, matchIndex + trimmedQuery.length + contextRadius);
-                const slice = fullText.slice(start, end);
+                const end = Math.min(text.length, matchIndex + trimmedQuery.length + contextRadius);
+                const slice = text.slice(start, end);
                 const prefix = start > 0 ? "..." : "";
-                const suffix = end < fullText.length ? "..." : "";
+                const suffix = end < text.length ? "..." : "";
                 return prefix + slice + suffix;
             }
         }
 
-        return fullText.slice(0, 150) + (fullText.length > 150 ? "..." : "");
+        return text.slice(0, 150) + (text.length > 150 ? "..." : "");
+    };
+
+    // Get preview text centered around the search term
+    const getPreviewText = (message: GlobalSearchResult): string => {
+        if (!message.content) return t("globalSearch.noPreview");
+
+        const trimmedQuery = query.trim().toLowerCase();
+        const parts = collectPreviewParts(message.content);
+        if (parts.length === 0) return t("globalSearch.noPreview");
+
+        const bestPart = parts.find((part) => part.text.toLowerCase().includes(trimmedQuery)) ?? parts[0];
+        if (!bestPart) return t("globalSearch.noPreview");
+
+        const preview = clipPreview(bestPart.text);
+        const label = getPreviewLabel(bestPart.kind);
+        return label ? `${label}: ${preview}` : preview;
     };
 
     // Format timestamp
@@ -442,13 +522,25 @@ export const GlobalSearchModal = ({
                     </div>
 
                     {/* Divider */}
-                    {projects.length > 1 && (
-                        <div className="w-px h-4 bg-border" />
-                    )}
+                    <div className="w-px h-4 bg-border" />
+
+                    <Select value={searchScope} onValueChange={(value) => setSearchScope(value as SearchScopeFilter)}>
+                        <SelectTrigger className="h-7 text-xs border-border w-36">
+                            <SelectValue placeholder={t("globalSearch.scope.placeholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="text">{t("globalSearch.scope.text")}</SelectItem>
+                            <SelectItem value="textThinking">{t("globalSearch.scope.textThinking")}</SelectItem>
+                            <SelectItem value="textTools">{t("globalSearch.scope.textTools")}</SelectItem>
+                            <SelectItem value="textToolResults">{t("globalSearch.scope.textToolResults")}</SelectItem>
+                            <SelectItem value="all">{t("globalSearch.scope.all")}</SelectItem>
+                        </SelectContent>
+                    </Select>
 
                     {/* Project Filter */}
                     {projects.length > 1 && (
                         <>
+                            <div className="w-px h-4 bg-border" />
                             <Filter className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                             <Select value={selectedProjectPath} onValueChange={setSelectedProjectPath}>
                                 <SelectTrigger className="h-7 text-xs border-border w-40">

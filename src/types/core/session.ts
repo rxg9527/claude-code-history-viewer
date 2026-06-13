@@ -96,6 +96,7 @@ export interface SearchFilters {
   dateRange?: [Date, Date];
   projects?: string[];
   messageType?: "user" | "assistant" | "all";
+  searchScope?: "text" | "textThinking" | "textTools" | "textToolResults" | "all";
   hasToolCalls?: boolean;
   hasErrors?: boolean;
   hasFileChanges?: boolean;

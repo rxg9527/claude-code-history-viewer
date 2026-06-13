@@ -489,7 +489,11 @@ pub async fn search_all_providers(
         }
     }
 
-    all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
+    all_results = crate::commands::session::apply_search_filters_for_query(
+        all_results,
+        &search_filters,
+        &query,
+    );
 
     // Sort by parsed timestamp descending (robust to `Z` vs `+00:00` formats)
     all_results.sort_by(|a, b| {
