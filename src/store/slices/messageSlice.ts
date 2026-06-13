@@ -197,9 +197,6 @@ export const createMessageSlice: StateCreator<
       ...(preserveStack ? {} : { parentSessionStack: [] }),
     });
 
-    // Reset message filters on session switch
-    get().resetMessageFilter();
-
     get().setSelectedSession(session);
     // Note: sessionSearch state reset is handled by searchSlice
 

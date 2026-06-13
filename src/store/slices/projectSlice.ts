@@ -120,6 +120,8 @@ export const createProjectSlice: StateCreator<
   initializeApp: async () => {
     set({ isLoading: true, error: null });
     try {
+      await get().loadMessageFilter();
+
       if (!isTauriAvailable()) {
         throw new Error(
           "Tauri API를 사용할 수 없습니다. 데스크톱 앱에서 실행해주세요."

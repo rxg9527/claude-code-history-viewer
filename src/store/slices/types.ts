@@ -339,6 +339,7 @@ export interface AppStoreActions {
   toggleRole: (role: keyof import('./filterSlice').MessageFilterRoles) => void;
   toggleContentType: (contentType: keyof import('./filterSlice').MessageFilterContentTypes) => void;
   resetMessageFilter: () => void;
+  loadMessageFilter: () => Promise<void>;
   isMessageFilterActive: () => boolean;
 
   // Watcher actions

@@ -33,6 +33,7 @@ import {
   createMessageSlice,
   type MessageSlice,
 } from "../store/slices/messageSlice";
+import type { MessageFilter } from "../store/slices/filterSlice";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -100,6 +101,7 @@ type TestStore = MessageSlice & {
   selectedSession: ClaudeSession | null;
   excludeSidechain: boolean;
   showSystemMessages: boolean;
+  messageFilter: MessageFilter;
   setError: ReturnType<typeof vi.fn>;
   setSelectedSession: (s: ClaudeSession | null) => void;
   resetMessageFilter: () => void;
@@ -112,9 +114,13 @@ const createTestStore = () => {
     selectedSession: null,
     excludeSidechain: true,
     showSystemMessages: false,
+    messageFilter: {
+      roles: { user: true, assistant: true },
+      contentTypes: { text: true, thinking: true, toolCalls: true, commands: true },
+    },
     setError: vi.fn(),
     setSelectedSession: (s) => set({ selectedSession: s }),
-    resetMessageFilter: () => {},
+    resetMessageFilter: vi.fn(),
     selectedProject: null,
     dateFilter: { start: null, end: null },
     ...createMessageSlice(
@@ -300,6 +306,28 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
     await store.getState().selectSession(top);
 
     expect(store.getState().parentSessionStack).toEqual([]);
+  });
+
+  it("keeps message content type filters when switching sessions", async () => {
+    const store = createTestStore();
+    const session = makeSession({ file_path: "/tmp/filter.jsonl" });
+    const resetMessageFilter = store.getState().resetMessageFilter as ReturnType<typeof vi.fn>;
+    store.setState({
+      messageFilter: {
+        roles: { user: true, assistant: true },
+        contentTypes: { text: true, thinking: true, toolCalls: false, commands: true },
+      },
+    });
+    mockApi.mockImplementation((cmd: string) => {
+      if (cmd === "load_provider_messages") return Promise.resolve([]);
+      if (cmd === "get_session_subagents") return Promise.resolve([]);
+      return Promise.reject(new Error(`unexpected: ${cmd}`));
+    });
+
+    await store.getState().selectSession(session);
+
+    expect(store.getState().messageFilter.contentTypes.toolCalls).toBe(false);
+    expect(resetMessageFilter).not.toHaveBeenCalled();
   });
 });
 

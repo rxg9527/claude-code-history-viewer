@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 import type { DateFilter } from "../../types/board.types";
+import { storageAdapter } from "@/services/storage";
 
 export interface MessageFilterRoles {
     user: boolean;
@@ -24,6 +25,35 @@ const DEFAULT_MESSAGE_FILTER: MessageFilter = {
     contentTypes: { text: true, thinking: true, toolCalls: true, commands: true },
 };
 
+const MESSAGE_FILTER_STORAGE_KEY = "messageFilter";
+
+const normalizeMessageFilter = (value: unknown): MessageFilter => {
+    const stored = value as Partial<MessageFilter> | null | undefined;
+    return {
+        roles: {
+            ...DEFAULT_MESSAGE_FILTER.roles,
+            ...(stored?.roles ?? {}),
+        },
+        contentTypes: {
+            ...DEFAULT_MESSAGE_FILTER.contentTypes,
+            ...(stored?.contentTypes ?? {}),
+        },
+    };
+};
+
+const persistMessageFilter = async (messageFilter: MessageFilter) => {
+    try {
+        const store = await storageAdapter.load("settings.json", {
+            autoSave: false,
+            defaults: {},
+        });
+        await store.set(MESSAGE_FILTER_STORAGE_KEY, messageFilter);
+        await store.save();
+    } catch (error) {
+        console.warn("Failed to save message filter:", error);
+    }
+};
+
 export interface FilterSliceState {
     dateFilter: DateFilter;
     userOnlyFilter: boolean;
@@ -38,6 +68,7 @@ export interface FilterSliceActions {
     toggleRole: (role: keyof MessageFilterRoles) => void;
     toggleContentType: (contentType: keyof MessageFilterContentTypes) => void;
     resetMessageFilter: () => void;
+    loadMessageFilter: () => Promise<void>;
     isMessageFilterActive: () => boolean;
 }
 
@@ -85,6 +116,7 @@ export const createFilterSlice: StateCreator<
                 },
             },
         }));
+        void persistMessageFilter(get().messageFilter);
     },
 
     toggleContentType: (contentType) => {
@@ -97,15 +129,31 @@ export const createFilterSlice: StateCreator<
                 },
             },
         }));
+        void persistMessageFilter(get().messageFilter);
     },
 
     resetMessageFilter: () => {
-        set({
-            messageFilter: {
-                roles: { user: true, assistant: true },
-                contentTypes: { text: true, thinking: true, toolCalls: true, commands: true },
-            },
-        });
+        const messageFilter = {
+            roles: { ...DEFAULT_MESSAGE_FILTER.roles },
+            contentTypes: { ...DEFAULT_MESSAGE_FILTER.contentTypes },
+        };
+        set({ messageFilter });
+        void persistMessageFilter(messageFilter);
+    },
+
+    loadMessageFilter: async () => {
+        try {
+            const store = await storageAdapter.load("settings.json", {
+                autoSave: false,
+                defaults: {},
+            });
+            const savedFilter = await store.get<MessageFilter>(MESSAGE_FILTER_STORAGE_KEY);
+            if (savedFilter) {
+                set({ messageFilter: normalizeMessageFilter(savedFilter) });
+            }
+        } catch (error) {
+            console.warn("Failed to load persisted message filter:", error);
+        }
     },
 
     isMessageFilterActive: () => {
