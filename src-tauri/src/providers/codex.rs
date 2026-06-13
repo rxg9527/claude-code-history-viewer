@@ -10,6 +10,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
+const VSCODE_CONTEXT_PREFIX: &str = "# Context from my IDE setup:";
+const CODEX_REQUEST_MARKER: &str = "my request for codex";
+
 /// Detect Codex CLI installation
 pub fn detect() -> Option<ProviderInfo> {
     let base_path = get_base_path()?;
@@ -530,8 +533,10 @@ fn extract_session_info(rollout_path: &Path) -> Result<SessionInfo, String> {
                             if let Some(role) = payload.get("role").and_then(|r| r.as_str()) {
                                 if role == "user" {
                                     if let Some(text) = extract_text_from_content(payload) {
-                                        if !is_codex_auto_injected_user_text(&text) {
-                                            summary = Some(text);
+                                        if let Some(title) =
+                                            title_candidate_from_user_message(&text)
+                                        {
+                                            summary = Some(truncate_summary_text(&title));
                                         }
                                     }
                                 }
@@ -588,25 +593,89 @@ fn extract_text_from_content(item: &Value) -> Option<String> {
         let ctype = c.get("type").and_then(|t| t.as_str()).unwrap_or("");
         if ctype == "input_text" || ctype == "output_text" || ctype == "text" {
             if let Some(text) = c.get("text").and_then(|t| t.as_str()) {
-                let truncated = match text.char_indices().nth(200) {
-                    Some((idx, _)) => format!("{}...", &text[..idx]),
-                    None => text.to_string(),
-                };
-                return Some(truncated);
+                return Some(text.to_string());
             }
         }
     }
     None
 }
 
-/// Returns true when `text` is an auto-injected wrapper block prepended by
-/// codex CLI / Codex Desktop to every session (currently
-/// `<environment_context>...</environment_context>`). These look like user
-/// messages structurally but contain no real prompt, so they should be
-/// skipped when picking a session summary preview.
-fn is_codex_auto_injected_user_text(text: &str) -> bool {
-    let trimmed = text.trim_start();
-    trimmed.starts_with("<environment_context>")
+fn truncate_summary_text(text: &str) -> String {
+    match text.char_indices().nth(200) {
+        Some((idx, _)) => format!("{}...", &text[..idx]),
+        None => text.to_string(),
+    }
+}
+
+fn title_candidate_from_user_message(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with("# AGENTS.md")
+        || trimmed.starts_with("<environment_context>")
+    {
+        return None;
+    }
+
+    if trimmed.starts_with(VSCODE_CONTEXT_PREFIX) {
+        return extract_codex_prompt_from_ide_context(trimmed);
+    }
+
+    Some(trimmed.to_string())
+}
+
+fn extract_codex_prompt_from_ide_context(text: &str) -> Option<String> {
+    let normalized = text.replace("\r\n", "\n");
+    let lines = normalized.lines().collect::<Vec<_>>();
+
+    // VS Code injects the real prompt as the last "## My request for Codex:"
+    // section. Earlier matches can be headings inside active selections.
+    let mut prompt: Option<String> = None;
+    for (index, line) in lines.iter().enumerate() {
+        let Some(inline_prompt) = codex_request_heading_payload(line) else {
+            continue;
+        };
+
+        if !inline_prompt.is_empty() {
+            prompt = Some(inline_prompt.to_string());
+            continue;
+        }
+
+        let following_prompt = lines[index + 1..].join("\n").trim().to_string();
+        prompt = (!following_prompt.is_empty()).then_some(following_prompt);
+    }
+
+    prompt
+}
+
+fn codex_request_heading_payload(line: &str) -> Option<&str> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('#') {
+        return None;
+    }
+
+    let heading = trimmed.trim_start_matches('#').trim_start();
+    let lowered = heading.to_ascii_lowercase();
+    if !lowered.starts_with(CODEX_REQUEST_MARKER) {
+        return None;
+    }
+
+    let suffix = heading[CODEX_REQUEST_MARKER.len()..].trim_start();
+    if suffix.is_empty() {
+        return Some("");
+    }
+
+    let Some(separator) = suffix.chars().next() else {
+        return Some("");
+    };
+    if !matches!(separator, ':' | '：' | '-' | '—') {
+        return None;
+    }
+
+    Some(
+        suffix
+            .trim_start_matches(|c: char| c.is_whitespace() || matches!(c, ':' | '：' | '-' | '—'))
+            .trim(),
+    )
 }
 
 fn convert_codex_item(
@@ -2363,6 +2432,13 @@ mod tests {
     }
 
     const ENV_CONTEXT_BLOCK: &str = "<environment_context>\n  <cwd>/tmp/proj</cwd>\n  <shell>powershell</shell>\n  <current_date>2026-05-13</current_date>\n  <timezone>Asia/Shanghai</timezone>\n</environment_context>";
+    const AGENTS_INSTRUCTIONS_BLOCK: &str = r"# AGENTS.md instructions for /Users/Ruan/Downloads/01_src/github_refs/01-AI/04-AI应用/03-桌面应用/claude-code-history-viewer
+
+<INSTRUCTIONS>
+# Codex/Agents 项目管理指南
+
+- 长期实现计划必须遵循 `long-term-plan` skill；若本文件与该 skill 冲突，以 skill 为准。
+</INSTRUCTIONS>";
 
     #[test]
     /// First user message is an auto-injected `<environment_context>` block;
@@ -2399,6 +2475,136 @@ mod tests {
         ]);
 
         assert_eq!(info.summary.as_deref(), Some("fix the WSL crash"));
+        assert_eq!(info.message_count, 2);
+    }
+
+    #[test]
+    /// First user message is an auto-injected AGENTS.md instruction block;
+    /// second user message is a real prompt, so the summary should be the
+    /// real prompt.
+    fn extract_session_info_skips_agents_instructions_block() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line("2026-05-13T08:00:01Z", AGENTS_INSTRUCTIONS_BLOCK),
+            user_message_line(
+                "2026-05-13T08:00:02Z",
+                "Optimize the Codex conversation title.",
+            ),
+        ]);
+
+        assert_eq!(
+            info.summary.as_deref(),
+            Some("Optimize the Codex conversation title.")
+        );
+        assert_eq!(info.message_count, 2);
+    }
+
+    #[test]
+    /// Session contains only an auto-injected AGENTS.md block and no real
+    /// prompt, so it should not get a misleading summary.
+    fn extract_session_info_agents_instructions_only_yields_no_summary() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line("2026-05-13T08:00:01Z", AGENTS_INSTRUCTIONS_BLOCK),
+        ]);
+
+        assert!(
+            info.summary.is_none(),
+            "AGENTS-only sessions should not produce a misleading summary; got {:?}",
+            info.summary
+        );
+        assert_eq!(info.message_count, 1);
+    }
+
+    #[test]
+    /// A normal user prompt can mention the AGENTS.md heading without being
+    /// the injected instruction block. Require the instruction marker to avoid
+    /// skipping real prompts.
+    fn extract_session_info_keeps_real_prompt_that_mentions_agents_heading() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line(
+                "2026-05-13T08:00:01Z",
+                "Please summarize # AGENTS.md instructions for this repo for onboarding",
+            ),
+            user_message_line("2026-05-13T08:00:02Z", "second message"),
+        ]);
+
+        assert_eq!(
+            info.summary.as_deref(),
+            Some("Please summarize # AGENTS.md instructions for this repo for onboarding")
+        );
+        assert_eq!(info.message_count, 2);
+    }
+
+    #[test]
+    /// VS Code can wrap the real prompt in a large IDE context block. Extract
+    /// the final Codex request heading instead of using the wrapper heading as
+    /// the session summary.
+    fn extract_session_info_extracts_vscode_ide_request() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line(
+                "2026-05-13T08:00:01Z",
+                "# Context from my IDE setup:\n\n## Active file: src/main.ts\n\n## My request for Codex:\nFix the session title preview",
+            ),
+        ]);
+
+        assert_eq!(
+            info.summary.as_deref(),
+            Some("Fix the session title preview")
+        );
+        assert_eq!(info.message_count, 1);
+    }
+
+    #[test]
+    /// Inline request headings are also supported by Codex's VS Code context.
+    fn extract_session_info_extracts_inline_vscode_ide_request() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line(
+                "2026-05-13T08:00:01Z",
+                "# Context from my IDE setup:\n\n## My request for Codex: Fix the TOC preview",
+            ),
+        ]);
+
+        assert_eq!(info.summary.as_deref(), Some("Fix the TOC preview"));
+        assert_eq!(info.message_count, 1);
+    }
+
+    #[test]
+    /// Use the last request heading because earlier headings can be present in
+    /// active selection text.
+    fn extract_session_info_uses_last_vscode_request_heading() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line(
+                "2026-05-13T08:00:01Z",
+                "# Context from my IDE setup:\n\n## Active selection:\n## My request for Codex:\nselected document content, not the prompt\n\n## My request for Codex:\nUse the real request heading",
+            ),
+        ]);
+
+        assert_eq!(
+            info.summary.as_deref(),
+            Some("Use the real request heading")
+        );
+        assert_eq!(info.message_count, 1);
+    }
+
+    #[test]
+    /// If VS Code context has no Codex request section, keep scanning for the
+    /// next real user prompt.
+    fn extract_session_info_skips_vscode_context_without_request() {
+        let info = run_extract_session_info_on_lines(vec![
+            session_meta_line(),
+            user_message_line(
+                "2026-05-13T08:00:01Z",
+                "# Context from my IDE setup:\n\n## Active file: src/main.ts",
+            ),
+            user_message_line("2026-05-13T08:00:02Z", "Fix the login bug"),
+        ]);
+
+        assert_eq!(info.summary.as_deref(), Some("Fix the login bug"));
         assert_eq!(info.message_count, 2);
     }
 
