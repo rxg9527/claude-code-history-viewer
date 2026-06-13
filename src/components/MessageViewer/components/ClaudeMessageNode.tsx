@@ -375,6 +375,7 @@ export const ClaudeMessageNode = React.memo(({
     (message.type === "user" || message.type === "assistant") &&
     message.toolUseResult != null &&
     !hasInlineToolResult;
+  const messageTextContent = extractClaudeMessageContent(message);
 
   // Default message rendering
   return (
@@ -402,7 +403,7 @@ export const ClaudeMessageNode = React.memo(({
           <div className="w-full">
             {(message.type !== "assistant" || messageFilter.contentTypes.text) && (
               <MessageContentDisplay
-                content={extractClaudeMessageContent(message)}
+                content={messageTextContent}
                 messageType={message.type}
                 searchQuery={searchQuery}
                 isCurrentMatch={isCurrentMatch}
@@ -422,8 +423,7 @@ export const ClaudeMessageNode = React.memo(({
                     skipToolResults={shouldRenderLegacyToolResult}
                     skipText={
                       (message.type === "assistant" && !messageFilter.contentTypes.text) ||
-                      (message.type === "assistant" &&
-                      !!extractClaudeMessageContent(message))
+                      !!messageTextContent
                     }
                     skipThinking={message.type === "assistant" && !messageFilter.contentTypes.thinking}
                     skipCommands={message.type === "assistant" && !messageFilter.contentTypes.commands}
