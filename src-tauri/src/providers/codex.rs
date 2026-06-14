@@ -1,7 +1,7 @@
 use super::ProviderInfo;
 use crate::commands::session::{build_matcher, content_matches_scope, SearchScope};
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::{build_provider_message, find_line_ranges};
+use crate::utils::{build_provider_message, find_line_ranges, parse_rfc3339_utc};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use serde_json::Value;
@@ -453,10 +453,6 @@ pub(crate) fn search(
 
             if let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) {
                 for msg in messages {
-                    if results.len() >= limit {
-                        return Ok(results);
-                    }
-
                     if let Some(content) = &msg.content {
                         if content_matches_scope(content, &matcher, search_scope) {
                             results.push(msg);
@@ -466,6 +462,19 @@ pub(crate) fn search(
             }
         }
     }
+
+    results.sort_by(|a, b| {
+        match (
+            parse_rfc3339_utc(&a.timestamp),
+            parse_rfc3339_utc(&b.timestamp),
+        ) {
+            (Some(a_ts), Some(b_ts)) => b_ts.cmp(&a_ts),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => b.timestamp.cmp(&a.timestamp),
+        }
+    });
+    results.truncate(limit);
 
     Ok(results)
 }

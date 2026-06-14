@@ -293,11 +293,14 @@ pub async fn search_all_providers(
     active_providers: Option<Vec<String>>,
     filters: Option<Value>,
     limit: Option<usize>,
+    offset: Option<usize>,
     custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
     wsl_enabled: Option<bool>,
     wsl_excluded_distros: Option<Vec<String>>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     let max_results = limit.unwrap_or(100);
+    let offset = offset.unwrap_or(0);
+    let provider_fetch_limit = offset.saturating_add(max_results);
     let search_filters =
         filters.unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::default()));
     crate::commands::session::validate_search_filters(&search_filters)?;
@@ -327,7 +330,8 @@ pub async fn search_all_providers(
                 base,
                 query.clone(),
                 search_filters.clone(),
-                Some(max_results),
+                Some(provider_fetch_limit),
+                None,
             )
             .await
             {
@@ -356,7 +360,8 @@ pub async fn search_all_providers(
                     custom.path.clone(),
                     query.clone(),
                     search_filters.clone(),
-                    Some(max_results),
+                    Some(provider_fetch_limit),
+                    None,
                 )
                 .await
                 {
@@ -378,7 +383,7 @@ pub async fn search_all_providers(
 
     // Codex
     if providers_to_search.iter().any(|p| p == "codex") {
-        match providers::codex::search(&query, max_results, search_scope) {
+        match providers::codex::search(&query, provider_fetch_limit, search_scope) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Codex search failed: {e}");
@@ -388,7 +393,7 @@ pub async fn search_all_providers(
 
     // Gemini
     if providers_to_search.iter().any(|p| p == "gemini") {
-        match providers::gemini::search(&query, max_results) {
+        match providers::gemini::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Gemini search failed: {e}");
@@ -398,7 +403,7 @@ pub async fn search_all_providers(
 
     // ForgeCode
     if providers_to_search.iter().any(|p| p == "forgecode") {
-        match providers::forgecode::search(&query, max_results) {
+        match providers::forgecode::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("ForgeCode search failed: {e}");
@@ -408,7 +413,7 @@ pub async fn search_all_providers(
 
     // OpenCode
     if providers_to_search.iter().any(|p| p == "opencode") {
-        match providers::opencode::search(&query, max_results) {
+        match providers::opencode::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("OpenCode search failed: {e}");
@@ -418,7 +423,7 @@ pub async fn search_all_providers(
 
     // Cline
     if providers_to_search.iter().any(|p| p == "cline") {
-        match providers::cline::search(&query, max_results) {
+        match providers::cline::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Cline search failed: {e}");
@@ -428,7 +433,7 @@ pub async fn search_all_providers(
 
     // Cursor
     if providers_to_search.iter().any(|p| p == "cursor") {
-        match providers::cursor::search(&query, max_results) {
+        match providers::cursor::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Cursor search failed: {e}");
@@ -438,7 +443,7 @@ pub async fn search_all_providers(
 
     // Aider
     if providers_to_search.iter().any(|p| p == "aider") {
-        match providers::aider::search(&query, max_results) {
+        match providers::aider::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Aider search failed: {e}");
@@ -448,7 +453,7 @@ pub async fn search_all_providers(
 
     // Antigravity
     if providers_to_search.iter().any(|p| p == "antigravity") {
-        match providers::antigravity::search(&query, max_results) {
+        match providers::antigravity::search(&query, provider_fetch_limit) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Antigravity search failed: {e}");
@@ -470,7 +475,8 @@ pub async fn search_all_providers(
                     unc_str,
                     query.clone(),
                     search_filters.clone(),
-                    Some(max_results),
+                    Some(provider_fetch_limit),
+                    None,
                 )
                 .await
                 {
@@ -508,7 +514,11 @@ pub async fn search_all_providers(
             (None, None) => b.timestamp.cmp(&a.timestamp),
         }
     });
-    all_results.truncate(max_results);
+    all_results = all_results
+        .into_iter()
+        .skip(offset)
+        .take(max_results)
+        .collect();
 
     Ok(all_results)
 }

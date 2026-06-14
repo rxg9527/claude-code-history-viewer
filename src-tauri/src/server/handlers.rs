@@ -128,6 +128,8 @@ pub struct SearchParams {
     pub filters: Value,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default)]
+    pub offset: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -331,6 +333,8 @@ pub struct SearchAllProvidersParams {
     #[serde(default)]
     pub limit: Option<usize>,
     #[serde(default)]
+    pub offset: Option<usize>,
+    #[serde(default)]
     pub custom_claude_paths: Option<Vec<commands::multi_provider::CustomClaudePathParam>>,
     #[serde(default)]
     pub wsl_enabled: Option<bool>,
@@ -470,7 +474,8 @@ handler_json!(
     search_messages,
     SearchParams,
     |p: SearchParams| async move {
-        commands::session::search_messages(p.claude_path, p.query, p.filters, p.limit).await
+        commands::session::search_messages(p.claude_path, p.query, p.filters, p.limit, p.offset)
+            .await
     }
 );
 
@@ -813,6 +818,7 @@ handler_json!(
             p.active_providers,
             p.filters,
             p.limit,
+            p.offset,
             p.custom_claude_paths,
             p.wsl_enabled,
             p.wsl_excluded_distros,

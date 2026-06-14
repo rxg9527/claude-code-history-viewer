@@ -196,6 +196,8 @@
   "globalSearch.noResults": "找不到結果",
   "globalSearch.placeholder": "搜尋訊息...",
   "globalSearch.results": "{{count}} 個結果",
+  "globalSearch.loadMore": "繼續搜尋下 {{count}} 個結果",
+  "globalSearch.loadingMore": "正在搜尋下一批...",
   "globalSearch.searchFailed": "搜尋失敗",
   "globalSearch.searching": "搜尋中...",
   "globalSearch.select": "選擇",

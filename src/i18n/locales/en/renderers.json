@@ -196,6 +196,8 @@
   "globalSearch.noResults": "No results found",
   "globalSearch.placeholder": "Search messages...",
   "globalSearch.results": "{{count}} results",
+  "globalSearch.loadMore": "Search next {{count}} results",
+  "globalSearch.loadingMore": "Searching next results...",
   "globalSearch.searchFailed": "Search failed",
   "globalSearch.searching": "Searching...",
   "globalSearch.select": "Select",

@@ -196,6 +196,8 @@
   "globalSearch.noResults": "結果が見つかりません",
   "globalSearch.placeholder": "メッセージを検索...",
   "globalSearch.results": "{{count}}件の結果",
+  "globalSearch.loadMore": "次の{{count}}件を検索",
+  "globalSearch.loadingMore": "次の結果を検索中...",
   "globalSearch.searchFailed": "検索に失敗しました",
   "globalSearch.searching": "検索中...",
   "globalSearch.select": "選択",

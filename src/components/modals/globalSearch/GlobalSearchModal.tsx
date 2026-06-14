@@ -39,7 +39,8 @@ interface GlobalSearchModalProps {
     onClose: () => void;
 }
 
-const MAX_RESULTS = 100;
+const SEARCH_PAGE_SIZE = 100;
+const SEARCH_REQUEST_LIMIT = SEARCH_PAGE_SIZE + 1;
 
 export const GlobalSearchModal = ({
     isOpen,
@@ -49,6 +50,8 @@ export const GlobalSearchModal = ({
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<GlobalSearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMoreResults, setHasMoreResults] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilter>("all");
     const [searchScope, setSearchScope] = useState<SearchScopeFilter>("text");
@@ -100,16 +103,28 @@ export const GlobalSearchModal = ({
 
     // Debounced search
     const performSearch = useCallback(
-        async (searchQuery: string) => {
+        async (
+            searchQuery: string,
+            options: { append?: boolean; offset?: number } = {},
+        ) => {
             const trimmedQuery = searchQuery.trim();
+            const append = options.append ?? false;
+            const offset = options.offset ?? 0;
 
             if (!claudePath || trimmedQuery.length < 2) {
                 setResults([]);
                 setIsSearching(false);
+                setIsLoadingMore(false);
+                setHasMoreResults(false);
                 return;
             }
 
-            setIsSearching(true);
+            if (append) {
+                setIsLoadingMore(true);
+            } else {
+                setIsSearching(true);
+                setHasMoreResults(false);
+            }
             try {
                 const filters: Record<string, unknown> = {};
                 if (selectedProjectPath !== "all") {
@@ -125,21 +140,41 @@ export const GlobalSearchModal = ({
                 const searchResults = await api<GlobalSearchResult[]>(
                     hasNonClaudeProviders ? "search_all_providers" : "search_messages",
                     hasNonClaudeProviders
-                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: MAX_RESULTS }
-                        : { claudePath, query: trimmedQuery, filters, limit: MAX_RESULTS },
+                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: SEARCH_REQUEST_LIMIT, offset }
+                        : { claudePath, query: trimmedQuery, filters, limit: SEARCH_REQUEST_LIMIT, offset },
                 );
-                setResults(searchResults);
-                setSelectedIndex(0);
+                const visibleResults = searchResults.slice(0, SEARCH_PAGE_SIZE);
+                setHasMoreResults(searchResults.length > SEARCH_PAGE_SIZE);
+                setResults((previousResults) =>
+                    append ? [...previousResults, ...visibleResults] : visibleResults,
+                );
+                if (!append) {
+                    setSelectedIndex(0);
+                }
             } catch (error) {
                 console.error("Global search failed:", error);
-                setResults([]);
+                if (!append) {
+                    setResults([]);
+                }
+                setHasMoreResults(false);
                 toast.error(t("globalSearch.searchFailed"));
             } finally {
-                setIsSearching(false);
+                if (append) {
+                    setIsLoadingMore(false);
+                } else {
+                    setIsSearching(false);
+                }
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, searchScope],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, searchScope, t],
     );
+
+    const handleLoadMore = useCallback(() => {
+        if (!hasMoreResults || isSearching || isLoadingMore || query.trim().length < 2) {
+            return;
+        }
+        performSearch(query, { append: true, offset: results.length });
+    }, [hasMoreResults, isSearching, isLoadingMore, query, results.length, performSearch]);
 
     // Handle input change with debounce
     const handleInputChange = useCallback(
@@ -275,6 +310,8 @@ export const GlobalSearchModal = ({
         } else {
             setQuery("");
             setResults([]);
+            setHasMoreResults(false);
+            setIsLoadingMore(false);
             setSelectedIndex(0);
             setSelectedProjectPath("all");
             setMessageTypeFilter("all");
@@ -486,6 +523,8 @@ export const GlobalSearchModal = ({
                             onClick={() => {
                                 setQuery("");
                                 setResults([]);
+                                setHasMoreResults(false);
+                                setIsLoadingMore(false);
                                 inputRef.current?.focus();
                             }}
                             className="p-1 hover:bg-muted rounded"
@@ -693,6 +732,25 @@ export const GlobalSearchModal = ({
                                         })}
                                     </div>
                                 ),
+                            )}
+                            {hasMoreResults && (
+                                <div className="px-4 pt-2 pb-1">
+                                    <button
+                                        type="button"
+                                        onClick={handleLoadMore}
+                                        disabled={isLoadingMore}
+                                        className="w-full h-8 inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        {isLoadingMore && (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        )}
+                                        <span>
+                                            {isLoadingMore
+                                                ? t("globalSearch.loadingMore")
+                                                : t("globalSearch.loadMore", { count: SEARCH_PAGE_SIZE })}
+                                        </span>
+                                    </button>
+                                </div>
                             )}
                         </div>
                     )}

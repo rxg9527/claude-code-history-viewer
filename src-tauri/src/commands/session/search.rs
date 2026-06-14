@@ -54,12 +54,19 @@ pub fn invalidate_search_cache() {
     CACHE_GENERATION.fetch_add(1, Ordering::Release);
 }
 
-fn cache_key(claude_path: &str, query: &str, filters: &serde_json::Value, limit: usize) -> u64 {
+fn cache_key(
+    claude_path: &str,
+    query: &str,
+    filters: &serde_json::Value,
+    limit: usize,
+    offset: usize,
+) -> u64 {
     let mut hasher = DefaultHasher::new();
     claude_path.hash(&mut hasher);
     query.to_lowercase().hash(&mut hasher);
     filters.to_string().hash(&mut hasher);
     limit.hash(&mut hasher);
+    offset.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -504,14 +511,16 @@ pub async fn search_messages(
     query: String,
     filters: serde_json::Value,
     limit: Option<usize>,
+    offset: Option<usize>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
     let max_results = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
+    let offset = offset.unwrap_or(0);
     validate_search_filters(&filters)?;
 
-    let key = cache_key(&claude_path, &query, &filters, max_results);
+    let key = cache_key(&claude_path, &query, &filters, max_results, offset);
     let current_gen = CACHE_GENERATION.load(Ordering::Acquire);
     if let Ok(mut cache) = SEARCH_CACHE.lock() {
         if let Some(cached) = cache.get(&key) {
@@ -548,11 +557,20 @@ pub async fn search_messages(
 
     filtered = apply_search_filters(filtered, &filters);
 
-    if filtered.len() > max_results {
-        filtered.select_nth_unstable_by(max_results, |a, b| b.timestamp.cmp(&a.timestamp));
-        filtered.truncate(max_results);
+    let page_end = offset.saturating_add(max_results);
+    if page_end == 0 {
+        filtered.clear();
+    } else if filtered.len() > page_end {
+        filtered.select_nth_unstable_by(page_end, |a, b| b.timestamp.cmp(&a.timestamp));
+        filtered.truncate(page_end);
     }
     filtered.sort_unstable_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    if offset > 0 {
+        filtered = filtered.into_iter().skip(offset).collect();
+    }
+    if filtered.len() > max_results {
+        filtered.truncate(max_results);
+    }
 
     if let Ok(mut cache) = SEARCH_CACHE.lock() {
         cache.put(
@@ -568,8 +586,9 @@ pub async fn search_messages(
     {
         let elapsed = start_time.elapsed();
         eprintln!(
-            "📊 search_messages performance: {} results (limit: {}), {}ms elapsed",
+            "📊 search_messages performance: {} results (offset: {}, limit: {}), {}ms elapsed",
             filtered.len(),
+            offset,
             max_results,
             elapsed.as_millis()
         );
@@ -630,6 +649,7 @@ mod tests {
             "Rust".to_string(),
             serde_json::json!({}),
             None,
+            None,
         )
         .await;
 
@@ -658,6 +678,7 @@ mod tests {
             temp_dir.path().to_string_lossy().to_string(),
             "hello".to_string(), // lowercase
             serde_json::json!({}),
+            None,
             None,
         )
         .await;
@@ -688,6 +709,7 @@ mod tests {
             "nonexistent".to_string(),
             serde_json::json!({}),
             None,
+            None,
         )
         .await;
 
@@ -705,11 +727,43 @@ mod tests {
             "test".to_string(),
             serde_json::json!({}),
             None,
+            None,
         )
         .await;
 
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_search_messages_paginates_after_sorting() {
+        let temp_dir = TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let content = [
+            r#"{"uuid":"old","sessionId":"session-1","timestamp":"2025-06-26T10:00:00Z","type":"user","message":{"role":"user","content":"needle old"}}"#,
+            r#"{"uuid":"new","sessionId":"session-1","timestamp":"2025-06-26T10:02:00Z","type":"user","message":{"role":"user","content":"needle new"}}"#,
+            r#"{"uuid":"middle","sessionId":"session-1","timestamp":"2025-06-26T10:01:00Z","type":"user","message":{"role":"user","content":"needle middle"}}"#,
+        ]
+        .join("\n");
+
+        let file_path = project_dir.join("test.jsonl");
+        let mut file = File::create(&file_path).unwrap();
+        file.write_all(format!("{content}\n").as_bytes()).unwrap();
+
+        let result = search_messages(
+            temp_dir.path().to_string_lossy().to_string(),
+            "needle".to_string(),
+            serde_json::json!({}),
+            Some(1),
+            Some(1),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].uuid, "middle");
     }
 
     #[tokio::test]
@@ -722,6 +776,7 @@ mod tests {
             serde_json::json!({
                 "dateRange": ["invalid-date", "2026-02-20T00:00:00Z"]
             }),
+            None,
             None,
         )
         .await;
@@ -754,6 +809,7 @@ mod tests {
             "needle".to_string(),
             serde_json::json!({"searchScope": "text"}),
             None,
+            None,
         )
         .await
         .unwrap();
@@ -781,6 +837,7 @@ mod tests {
             temp_dir.path().to_string_lossy().to_string(),
             "needle".to_string(),
             serde_json::json!({"searchScope": "textToolResults"}),
+            None,
             None,
         )
         .await
