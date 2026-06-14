@@ -524,6 +524,8 @@
   "settings.codexFilters.enable": "Enable Codex conversation filters",
   "settings.codexFilters.permissions": "Show permission approval conversations",
   "settings.codexFilters.permissionsDescription": "Include permissions instructions / guardian auto-review sessions. Hidden by default.",
+  "settings.codexFilters.gitCommitSubagents": "Show ajk-git-commit subagent conversations",
+  "settings.codexFilters.gitCommitSubagentsDescription": "Include commit worker sessions spawned by the ajk-git-commit skill. Hidden by default.",
   "settings.wsl.title": "WSL History Scanning",
   "settings.wsl.description": "Scan for AI assistant history inside WSL distributions",
   "settings.wsl.enable": "Enable WSL scanning",

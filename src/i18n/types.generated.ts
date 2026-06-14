@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-05-25T07:37:00.105Z
- * 총 키 개수: 1781
+ * 생성 시간: 2026-06-14T06:45:32.677Z
+ * 총 키 개수: 1800
  * Namespace 수: 11
  */
 
@@ -604,7 +604,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (529개)
+ * settings namespace의 번역 키 (536개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -626,6 +626,13 @@ export type SettingsKeys =
   | 'folderPicker.selectedPath'
   | 'folderPicker.validating'
   | 'folderPicker.validationError'
+  | 'settings.codexFilters.description'
+  | 'settings.codexFilters.enable'
+  | 'settings.codexFilters.gitCommitSubagents'
+  | 'settings.codexFilters.gitCommitSubagentsDescription'
+  | 'settings.codexFilters.permissions'
+  | 'settings.codexFilters.permissionsDescription'
+  | 'settings.codexFilters.title'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'
@@ -1358,7 +1365,7 @@ export type MessageKeys =
   | 'navigator.userOnly';
 
 /**
- * renderers namespace의 번역 키 (380개)
+ * renderers namespace의 번역 키 (392개)
  * 파일: locales/{lang}/renderers.json
  */
 export type RenderersKeys =
@@ -1547,12 +1554,24 @@ export type RenderersKeys =
   | 'globalSearch.filterType.assistant'
   | 'globalSearch.filterType.user'
   | 'globalSearch.hint'
+  | 'globalSearch.loadMore'
+  | 'globalSearch.loadingMore'
   | 'globalSearch.navigate'
   | 'globalSearch.navigationFailed'
   | 'globalSearch.noPreview'
   | 'globalSearch.noResults'
   | 'globalSearch.placeholder'
+  | 'globalSearch.preview.structured'
+  | 'globalSearch.preview.thinking'
+  | 'globalSearch.preview.tool'
+  | 'globalSearch.preview.toolResult'
   | 'globalSearch.results'
+  | 'globalSearch.scope.all'
+  | 'globalSearch.scope.placeholder'
+  | 'globalSearch.scope.text'
+  | 'globalSearch.scope.textThinking'
+  | 'globalSearch.scope.textToolResults'
+  | 'globalSearch.scope.textTools'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
@@ -2501,12 +2520,24 @@ export type TranslationKey =
   | 'globalSearch.filterType.assistant'
   | 'globalSearch.filterType.user'
   | 'globalSearch.hint'
+  | 'globalSearch.loadMore'
+  | 'globalSearch.loadingMore'
   | 'globalSearch.navigate'
   | 'globalSearch.navigationFailed'
   | 'globalSearch.noPreview'
   | 'globalSearch.noResults'
   | 'globalSearch.placeholder'
+  | 'globalSearch.preview.structured'
+  | 'globalSearch.preview.thinking'
+  | 'globalSearch.preview.tool'
+  | 'globalSearch.preview.toolResult'
   | 'globalSearch.results'
+  | 'globalSearch.scope.all'
+  | 'globalSearch.scope.placeholder'
+  | 'globalSearch.scope.text'
+  | 'globalSearch.scope.textThinking'
+  | 'globalSearch.scope.textToolResults'
+  | 'globalSearch.scope.textTools'
   | 'globalSearch.searchFailed'
   | 'globalSearch.searching'
   | 'globalSearch.select'
@@ -2912,6 +2943,13 @@ export type TranslationKey =
   | 'sessionPicker.empty'
   | 'sessionPicker.subtitle'
   | 'sessionPicker.title'
+  | 'settings.codexFilters.description'
+  | 'settings.codexFilters.enable'
+  | 'settings.codexFilters.gitCommitSubagents'
+  | 'settings.codexFilters.gitCommitSubagentsDescription'
+  | 'settings.codexFilters.permissions'
+  | 'settings.codexFilters.permissionsDescription'
+  | 'settings.codexFilters.title'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'

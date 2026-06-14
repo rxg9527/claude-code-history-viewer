@@ -98,6 +98,27 @@ export function CodexSessionFiltersSection({
                   }
                 />
               </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+                <div className="min-w-0">
+                  <Label
+                    htmlFor="codex-include-git-commit-subagents"
+                    className="text-sm cursor-pointer"
+                  >
+                    {t("settings.codexFilters.gitCommitSubagents")}
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {t("settings.codexFilters.gitCommitSubagentsDescription")}
+                  </p>
+                </div>
+                <Switch
+                  id="codex-include-git-commit-subagents"
+                  checked={filters.includeGitCommitSubagents}
+                  onCheckedChange={(checked) =>
+                    updateFilters({ includeGitCommitSubagents: checked })
+                  }
+                />
+              </div>
             </div>
           )}
         </div>

@@ -227,6 +227,9 @@ pub struct CodexSessionFilterSettings {
     /// Include permission/guardian approval conversations
     #[serde(default)]
     pub include_permissions: bool,
+    /// Include ajk-git-commit subagent worker conversations
+    #[serde(default)]
+    pub include_git_commit_subagents: bool,
 }
 
 impl Default for CodexSessionFilterSettings {
@@ -234,6 +237,7 @@ impl Default for CodexSessionFilterSettings {
         Self {
             enabled: true,
             include_permissions: false,
+            include_git_commit_subagents: false,
         }
     }
 }

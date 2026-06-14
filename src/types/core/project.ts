@@ -78,6 +78,8 @@ export interface CodexSessionFilterSettings {
   enabled: boolean;
   /** Include permission/guardian approval conversations */
   includePermissions: boolean;
+  /** Include ajk-git-commit subagent worker conversations */
+  includeGitCommitSubagents: boolean;
 }
 
 /** Global user settings */

@@ -20,6 +20,7 @@ const CODEX_REQUEST_MARKER: &str = "my request for codex";
 const CODEX_PERMISSION_GUARDIAN_NAME: &str = "guardian";
 const CODEX_PERMISSION_INSTRUCTIONS_MARKER: &str =
     "You are judging one planned coding-agent action";
+const AJK_GIT_COMMIT_SKILL_NAME: &str = "ajk-git-commit";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +31,9 @@ pub struct CodexSessionFilters {
     /// Whether permissions/guardian approval conversations should be included.
     #[serde(default)]
     pub include_permissions: bool,
+    /// Whether ajk-git-commit subagent worker conversations should be included.
+    #[serde(default)]
+    pub include_git_commit_subagents: bool,
 }
 
 lazy_static::lazy_static! {
@@ -248,20 +252,32 @@ fn store_session_index(index: CodexSessionIndex) {
 }
 
 fn should_apply_codex_filters(filters: Option<&CodexSessionFilters>) -> bool {
-    filters.map(|f| f.enabled).unwrap_or(false)
+    filters.map(|f| f.enabled).unwrap_or(true)
 }
 
 fn should_hide_permissions_sessions(filters: Option<&CodexSessionFilters>) -> bool {
     filters
         .map(|f| f.enabled && !f.include_permissions)
-        .unwrap_or(false)
+        .unwrap_or(true)
+}
+
+fn should_hide_git_commit_subagent_sessions(filters: Option<&CodexSessionFilters>) -> bool {
+    filters
+        .map(|f| f.enabled && !f.include_git_commit_subagents)
+        .unwrap_or(true)
 }
 
 fn codex_session_allowed(session: &ClaudeSession, filters: Option<&CodexSessionFilters>) -> bool {
-    if !should_hide_permissions_sessions(filters) {
-        return true;
+    let path = Path::new(&session.file_path);
+    if should_hide_permissions_sessions(filters) && is_permissions_approval_session_path(path) {
+        return false;
     }
-    !is_permissions_approval_session_path(Path::new(&session.file_path))
+    if should_hide_git_commit_subagent_sessions(filters)
+        && is_ajk_git_commit_subagent_session_path(path)
+    {
+        return false;
+    }
+    true
 }
 
 fn filter_codex_sessions(
@@ -373,6 +389,51 @@ fn is_permissions_approval_session_path(path: &Path) -> bool {
     }
 
     false
+}
+
+fn is_ajk_git_commit_subagent_session_path(path: &Path) -> bool {
+    let Ok(file) = File::open(path) else {
+        return false;
+    };
+    let reader = BufReader::new(file);
+    let mut is_subagent_worker = false;
+    let mut has_git_commit_worker_prompt = false;
+
+    for line in reader.lines().map_while(Result::ok).take(120) {
+        let Ok(value) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+
+        if value.get("type").and_then(Value::as_str) == Some("session_meta") {
+            if let Some(payload) = value.get("payload") {
+                let has_thread_spawn = payload.pointer("/source/subagent/thread_spawn").is_some();
+                let thread_source = payload.get("thread_source").and_then(Value::as_str);
+                let agent_role = payload.get("agent_role").and_then(Value::as_str);
+                is_subagent_worker = has_thread_spawn
+                    || (thread_source == Some("subagent") && agent_role == Some("worker"));
+            }
+            continue;
+        }
+
+        let Some(payload) = value.get("payload") else {
+            continue;
+        };
+        if payload.get("type").and_then(Value::as_str) != Some("message") {
+            continue;
+        }
+        if payload.get("role").and_then(Value::as_str) != Some("user") {
+            continue;
+        }
+
+        if let Some(text) = extract_text_from_content(payload) {
+            has_git_commit_worker_prompt = text.contains(AJK_GIT_COMMIT_SKILL_NAME);
+            if has_git_commit_worker_prompt {
+                break;
+            }
+        }
+    }
+
+    is_subagent_worker && has_git_commit_worker_prompt
 }
 
 fn load_thread_titles_from_base_path(
@@ -737,6 +798,11 @@ pub(crate) fn search_with_filters(
             let rollout_path = entry.path();
             if should_hide_permissions_sessions(filters)
                 && is_permissions_approval_session_path(rollout_path)
+            {
+                continue;
+            }
+            if should_hide_git_commit_subagent_sessions(filters)
+                && is_ajk_git_commit_subagent_session_path(rollout_path)
             {
                 continue;
             }
@@ -2852,6 +2918,7 @@ mod tests {
         let filters = CodexSessionFilters {
             enabled: true,
             include_permissions: false,
+            include_git_commit_subagents: false,
         };
         let projects =
             scan_projects_from_path_with_filters(&codex_home.to_string_lossy(), Some(&filters))
@@ -2868,6 +2935,7 @@ mod tests {
         let visible_filters = CodexSessionFilters {
             enabled: true,
             include_permissions: true,
+            include_git_commit_subagents: false,
         };
         let visible_sessions = load_sessions_with_filters(
             &format!("codex://{project_cwd}"),
@@ -2876,6 +2944,160 @@ mod tests {
         )
         .expect("sessions should be loaded");
         assert_eq!(visible_sessions.len(), 2);
+        invalidate_session_index_cache();
+    }
+
+    #[test]
+    #[serial]
+    fn codex_session_filters_hide_ajk_git_commit_subagent_sessions() {
+        invalidate_session_index_cache();
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("06")
+            .join("14");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let project_cwd = "/Users/jack/client/git-commit-project";
+        let normal_rollout = sessions_dir.join("rollout-normal.jsonl");
+        let git_commit_rollout = sessions_dir.join("rollout-git-commit-worker.jsonl");
+        let normal_lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "normal-session", "cwd": project_cwd }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-06-14T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "normal prompt" }]
+                }
+            }),
+        ];
+        let git_commit_lines = [
+            json!({
+                "type": "session_meta",
+                "payload": {
+                    "id": "git-commit-session",
+                    "cwd": project_cwd,
+                    "source": {
+                        "subagent": {
+                            "thread_spawn": {
+                                "parent_thread_id": "parent-session",
+                                "depth": 1,
+                                "agent_nickname": "Sagan",
+                                "agent_role": "worker"
+                            }
+                        }
+                    },
+                    "thread_source": "subagent",
+                    "agent_nickname": "Sagan",
+                    "agent_role": "worker"
+                }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-06-14T11:00:00Z",
+                    "content": [{
+                        "type": "input_text",
+                        "text": "你负责在仓库 /tmp/repo 执行一次 git commit。请严格按 `/Users/Ruan/.cc-switch/skills/ajk-git-commit/SKILL.md` 的规则。"
+                    }]
+                }
+            }),
+        ];
+        fs::write(
+            &normal_rollout,
+            normal_lines
+                .iter()
+                .map(Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n",
+        )
+        .expect("normal fixture should be written");
+        fs::write(
+            &git_commit_rollout,
+            git_commit_lines
+                .iter()
+                .map(Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n",
+        )
+        .expect("git commit worker fixture should be written");
+
+        let default_projects =
+            scan_projects_from_path_with_filters(&codex_home.to_string_lossy(), None)
+                .expect("projects should be scanned");
+        assert_eq!(default_projects.len(), 1);
+        assert_eq!(default_projects[0].session_count, 1);
+
+        let default_sessions =
+            load_sessions_with_filters(&format!("codex://{project_cwd}"), false, None)
+                .expect("sessions should be loaded");
+        assert_eq!(default_sessions.len(), 1);
+        assert_eq!(default_sessions[0].actual_session_id, "normal-session");
+
+        let default_search_results =
+            search_with_filters(AJK_GIT_COMMIT_SKILL_NAME, 10, SearchScope::All, None)
+                .expect("search should run");
+        assert!(default_search_results.is_empty());
+
+        let filters = CodexSessionFilters {
+            enabled: true,
+            include_permissions: true,
+            include_git_commit_subagents: false,
+        };
+        let projects =
+            scan_projects_from_path_with_filters(&codex_home.to_string_lossy(), Some(&filters))
+                .expect("projects should be scanned");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].session_count, 1);
+
+        let sessions =
+            load_sessions_with_filters(&format!("codex://{project_cwd}"), false, Some(&filters))
+                .expect("sessions should be loaded");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "normal-session");
+
+        let hidden_search_results = search_with_filters(
+            AJK_GIT_COMMIT_SKILL_NAME,
+            10,
+            SearchScope::All,
+            Some(&filters),
+        )
+        .expect("search should run");
+        assert!(hidden_search_results.is_empty());
+
+        let visible_filters = CodexSessionFilters {
+            enabled: true,
+            include_permissions: true,
+            include_git_commit_subagents: true,
+        };
+        let visible_sessions = load_sessions_with_filters(
+            &format!("codex://{project_cwd}"),
+            false,
+            Some(&visible_filters),
+        )
+        .expect("sessions should be loaded");
+        assert_eq!(visible_sessions.len(), 2);
+
+        let visible_search_results = search_with_filters(
+            AJK_GIT_COMMIT_SKILL_NAME,
+            10,
+            SearchScope::All,
+            Some(&visible_filters),
+        )
+        .expect("search should run");
+        assert_eq!(visible_search_results.len(), 1);
         invalidate_session_index_cache();
     }
 

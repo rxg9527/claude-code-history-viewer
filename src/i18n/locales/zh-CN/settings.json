@@ -524,6 +524,8 @@
   "settings.codexFilters.enable": "启用 Codex 对话过滤",
   "settings.codexFilters.permissions": "显示提权审批对话",
   "settings.codexFilters.permissionsDescription": "包含 permissions instructions / guardian 自动审批类会话。默认隐藏。",
+  "settings.codexFilters.gitCommitSubagents": "显示 ajk-git-commit 子代理对话",
+  "settings.codexFilters.gitCommitSubagentsDescription": "包含 ajk-git-commit skill 派生的提交 worker 会话。默认隐藏。",
   "settings.wsl.title": "WSL 历史扫描",
   "settings.wsl.description": "扫描 WSL 发行版中的 AI 助手历史记录",
   "settings.wsl.enable": "启用 WSL 扫描",
