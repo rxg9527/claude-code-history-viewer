@@ -83,6 +83,66 @@ fn project_name_from_cwd(cwd: &str) -> String {
         .unwrap_or_else(|| cwd.to_string())
 }
 
+fn load_thread_titles() -> Result<HashMap<String, CodexThreadTitle>, String> {
+    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
+    load_thread_titles_from_index(&Path::new(&base_path).join("session_index.jsonl"))
+}
+
+fn load_thread_titles_from_index(
+    index_path: &Path,
+) -> Result<HashMap<String, CodexThreadTitle>, String> {
+    if !index_path.exists() {
+        return Ok(HashMap::new());
+    }
+
+    let content = fs::read_to_string(index_path)
+        .map_err(|e| format!("Failed to read Codex session index: {e}"))?;
+    let mut titles = HashMap::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let Ok(value) = serde_json::from_str::<Value>(trimmed) else {
+            continue;
+        };
+        let Some(id) = value.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(thread_name) = value.get("thread_name").and_then(Value::as_str) else {
+            continue;
+        };
+        let thread_name = thread_name.trim();
+        if thread_name.is_empty() {
+            continue;
+        }
+
+        let updated_at = value
+            .get("updated_at")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let should_replace = titles
+            .get(id)
+            .map(|existing: &CodexThreadTitle| updated_at > existing.updated_at)
+            .unwrap_or(true);
+
+        if should_replace {
+            titles.insert(
+                id.to_string(),
+                CodexThreadTitle {
+                    name: thread_name.to_string(),
+                    updated_at,
+                },
+            );
+        }
+    }
+
+    Ok(titles)
+}
+
 fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<PathBuf, String> {
     let canonical_session = session_path
         .canonicalize()
@@ -129,6 +189,12 @@ struct SessionInfo {
     file_path: String,
     has_tool_use: bool,
     summary: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct CodexThreadTitle {
+    name: String,
+    updated_at: String,
 }
 
 /// Scan Codex projects from a specific base path.
@@ -217,6 +283,7 @@ pub fn load_sessions(
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
     let session_dirs = get_existing_session_dirs()?;
+    let thread_titles = load_thread_titles().unwrap_or_default();
 
     if session_dirs.is_empty() {
         return Ok(vec![]);
@@ -245,6 +312,11 @@ pub fn load_sessions(
                     continue;
                 }
 
+                let thread_title = thread_titles
+                    .get(&info.session_id)
+                    .map(|title| title.name.clone());
+                let is_renamed = thread_title.is_some();
+
                 sessions.push(ClaudeSession {
                     session_id: info.file_path.clone(),
                     actual_session_id: info.session_id,
@@ -256,8 +328,8 @@ pub fn load_sessions(
                     last_modified: info.last_modified,
                     has_tool_use: info.has_tool_use,
                     has_errors: false,
-                    summary: info.summary,
-                    is_renamed: false,
+                    summary: thread_title.or(info.summary),
+                    is_renamed,
                     provider: Some("codex".to_string()),
                     storage_type: None,
                     entrypoint: None,
@@ -2605,6 +2677,27 @@ mod tests {
 
         assert_eq!(info.summary.as_deref(), Some("fix the WSL crash"));
         assert_eq!(info.message_count, 2);
+    }
+
+    #[test]
+    fn load_thread_titles_from_index_uses_latest_thread_name() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let index_path = tmp.path().join("session_index.jsonl");
+        fs::write(
+            &index_path,
+            [
+                r#"{"id":"sess-1","thread_name":"old title","updated_at":"2026-06-13T14:07:37Z"}"#,
+                r#"{"id":"sess-1","thread_name":"new title","updated_at":"2026-06-14T02:02:34Z"}"#,
+                r#"{"id":"sess-2","thread_name":"other title","updated_at":"2026-06-13T14:07:37Z"}"#,
+            ]
+            .join("\n"),
+        )
+        .expect("index fixture should be written");
+
+        let titles = load_thread_titles_from_index(&index_path).expect("index should parse");
+
+        assert_eq!(titles["sess-1"].name, "new title");
+        assert_eq!(titles["sess-2"].name, "other title");
     }
 
     #[test]

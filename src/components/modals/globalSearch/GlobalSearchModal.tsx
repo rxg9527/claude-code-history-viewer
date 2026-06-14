@@ -86,6 +86,10 @@ export const GlobalSearchModal = ({
     const getSessionGroupLabel = useCallback((result: GlobalSearchResult): string => {
         const matchedSession = findSessionForResult(result);
         const fallback = matchedSession?.summary || result.sessionId || result.uuid;
+        if (matchedSession?.provider === "codex" && matchedSession.is_renamed && matchedSession.summary) {
+            return matchedSession.summary;
+        }
+
         const candidateIds = [
             matchedSession?.session_id,
             result.sessionId,
