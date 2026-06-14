@@ -487,6 +487,48 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     isViewingGlobalStats,
   ]);
 
+  useEffect(() => {
+    if (!selectedProject?.path || isViewingGlobalStats) {
+      return;
+    }
+
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      next.add(selectedProject.path);
+
+      if (groupingMode === "directory") {
+        const directoryGroup = directoryGroups.find((group) =>
+          group.projects.some((project) => project.path === selectedProject.path)
+        );
+        if (directoryGroup) {
+          next.add(`dir:${directoryGroup.path}`);
+        }
+      } else if (groupingMode === "worktree") {
+        const worktreeGroup = worktreeGroups.find(
+          (group) =>
+            group.parent.path === selectedProject.path ||
+            group.children.some((project) => project.path === selectedProject.path)
+        );
+        if (worktreeGroup) {
+          next.add(`group:${worktreeGroup.parent.path}`);
+        }
+      }
+
+      if (next.size === prev.size && [...next].every((key) => prev.has(key))) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [
+    directoryGroups,
+    groupingMode,
+    isViewingGlobalStats,
+    selectedProject?.path,
+    setExpandedProjects,
+    worktreeGroups,
+  ]);
+
   const handleTreeKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     const treeItems = Array.from(
       event.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]')

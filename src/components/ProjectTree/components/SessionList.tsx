@@ -1,7 +1,7 @@
 // src/components/ProjectTree/components/SessionList.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FixedSizeList as List } from "react-window";
+import { FixedSizeList as List, type FixedSizeList } from "react-window";
 import { Search, X, SortDesc, SortAsc } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,7 +50,11 @@ const SessionRow: React.FC<SessionRowProps> = ({ index, style, data }) => {
   }
 
   return (
-    <div style={style}>
+    <div
+      style={style}
+      data-session-id={session.session_id}
+      data-selected-session={selectedSession?.session_id === session.session_id ? "true" : undefined}
+    >
       <SessionItem
         session={session}
         isSelected={selectedSession?.session_id === session.session_id}
@@ -175,6 +179,8 @@ export const SessionList: React.FC<SessionListProps> = ({
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
+  const listRef = useRef<FixedSizeList>(null);
+  const nonVirtualListRef = useRef<HTMLDivElement>(null);
   const {
     sessionSortOrder,
     setSessionSortOrder,
@@ -264,6 +270,34 @@ export const SessionList: React.FC<SessionListProps> = ({
 
   // Virtual scroll 사용 여부
   const useVirtualScroll = filteredAndSortedSessions.length >= VIRTUALIZATION_THRESHOLD;
+  const selectedSessionIndex = useMemo(
+    () =>
+      selectedSession
+        ? filteredAndSortedSessions.findIndex(
+            (session) => session.session_id === selectedSession.session_id
+          )
+        : -1,
+    [filteredAndSortedSessions, selectedSession]
+  );
+
+  useEffect(() => {
+    if (selectedSessionIndex < 0) {
+      return;
+    }
+
+    if (useVirtualScroll) {
+      listRef.current?.scrollToItem(selectedSessionIndex, "smart");
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      nonVirtualListRef.current
+        ?.querySelector<HTMLElement>('[data-selected-session="true"]')
+        ?.scrollIntoView({ block: "nearest" });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [selectedSessionIndex, useVirtualScroll]);
 
   if (isLoading) {
     return (
@@ -296,21 +330,26 @@ export const SessionList: React.FC<SessionListProps> = ({
         {controls}
 
         {/* Session List */}
-        <div className="space-y-1 py-2">
+        <div ref={nonVirtualListRef} className="space-y-1 py-2">
           {filteredAndSortedSessions.length === 0 ? (
             <div className="py-2 text-2xs text-muted-foreground text-center">
               {t("session.filter.noResults", "No matching sessions")}
             </div>
           ) : (
             filteredAndSortedSessions.map((session) => (
-              <SessionItem
+              <div
                 key={session.session_id}
-                session={session}
-                isSelected={selectedSession?.session_id === session.session_id}
-                onSelect={() => onSessionSelect(session)}
-                onHover={() => onSessionHover?.(session)}
-                formatTimeAgo={formatTimeAgo}
-              />
+                data-session-id={session.session_id}
+                data-selected-session={selectedSession?.session_id === session.session_id ? "true" : undefined}
+              >
+                <SessionItem
+                  session={session}
+                  isSelected={selectedSession?.session_id === session.session_id}
+                  onSelect={() => onSessionSelect(session)}
+                  onHover={() => onSessionHover?.(session)}
+                  formatTimeAgo={formatTimeAgo}
+                />
+              </div>
             ))
           )}
         </div>
@@ -331,6 +370,7 @@ export const SessionList: React.FC<SessionListProps> = ({
           </div>
         ) : (
           <List
+            ref={listRef}
             height={listHeight}
             itemCount={filteredAndSortedSessions.length}
             itemSize={SESSION_ITEM_HEIGHT}
