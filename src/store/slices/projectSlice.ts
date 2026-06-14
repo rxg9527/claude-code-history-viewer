@@ -31,6 +31,7 @@ export interface ProjectSliceState {
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
   selectedSession: ClaudeSession | null;
+  projectSessionsCache: Record<string, ProjectSessionsCacheEntry>;
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
@@ -40,8 +41,9 @@ export interface ProjectSliceState {
 export interface ProjectSliceActions {
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
-  selectProject: (project: ClaudeProject) => Promise<void>;
+  selectProject: (project: ClaudeProject, options?: SelectProjectOptions) => Promise<void>;
   clearProjectSelection: () => void;
+  invalidateProjectSessionsCache: (projectPath?: string, provider?: string) => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
   setSelectedSession: (session: ClaudeSession | null) => void;
@@ -53,6 +55,15 @@ export interface ProjectSliceActions {
 
 export type ProjectSlice = ProjectSliceState & ProjectSliceActions;
 
+interface ProjectSessionsCacheEntry {
+  signature: string;
+  sessions: ClaudeSession[];
+}
+
+interface SelectProjectOptions {
+  forceRefresh?: boolean;
+}
+
 // ============================================================================
 // Initial State
 // ============================================================================
@@ -63,6 +74,7 @@ const initialProjectState: ProjectSliceState = {
   selectedProject: null,
   sessions: [],
   selectedSession: null,
+  projectSessionsCache: {},
   isLoading: false,
   isLoadingProjects: false,
   isLoadingSessions: false,
@@ -80,6 +92,14 @@ const isTauriAvailable = () => {
     return false;
   }
 };
+
+const getProjectSessionsCacheKey = (
+  project: ClaudeProject,
+  excludeSidechain: boolean
+) => `${project.provider ?? DEFAULT_PROVIDER_ID}::${project.path}::excludeSidechain:${excludeSidechain}`;
+
+const getProjectSignature = (project: ClaudeProject) =>
+  `${project.session_count}:${project.message_count}:${project.last_modified}`;
 
 // ============================================================================
 // CLAUDE_CONFIG_DIR Auto-detection
@@ -292,12 +312,30 @@ export const createProjectSlice: StateCreator<
     }
   },
 
-  selectProject: async (project: ClaudeProject) => {
+  selectProject: async (project: ClaudeProject, options?: SelectProjectOptions) => {
+    const requestId = nextRequestId("selectProject");
+    const excludeSidechain = get().excludeSidechain;
+    const cacheKey = getProjectSessionsCacheKey(project, excludeSidechain);
+    const signature = getProjectSignature(project);
+    const cached = get().projectSessionsCache[cacheKey];
+
+    if (!options?.forceRefresh && cached?.signature === signature) {
+      set({
+        selectedProject: project,
+        sessions: cached.sessions,
+        selectedSession: null,
+        isLoadingSessions: false,
+        error: null,
+      });
+      return;
+    }
+
     set({
       selectedProject: project,
       sessions: [],
       selectedSession: null,
       isLoadingSessions: true,
+      error: null,
     });
     try {
       const provider = project.provider ?? "claude";
@@ -305,13 +343,32 @@ export const createProjectSlice: StateCreator<
         ? await api<ClaudeSession[]>("load_provider_sessions", {
             provider,
             projectPath: project.path,
-            excludeSidechain: get().excludeSidechain,
+            excludeSidechain,
           })
         : await api<ClaudeSession[]>("load_project_sessions", {
             projectPath: project.path,
-            excludeSidechain: get().excludeSidechain,
+            excludeSidechain,
           });
+
+      if (requestId !== getRequestId("selectProject")) {
+        return;
+      }
+
+      const cacheSignature =
+        sessions.length !== project.session_count
+          ? getProjectSignature({ ...project, session_count: sessions.length })
+          : signature;
+
       set({ sessions });
+      set((state) => ({
+        projectSessionsCache: {
+          ...state.projectSessionsCache,
+          [cacheKey]: {
+            signature: cacheSignature,
+            sessions,
+          },
+        },
+      }));
 
       // Update project's session_count to match actual loaded sessions
       // (scan_projects counts files, but load_sessions filters invalid ones)
@@ -324,14 +381,20 @@ export const createProjectSlice: StateCreator<
         set({ projects });
       }
     } catch (error) {
+      if (requestId !== getRequestId("selectProject")) {
+        return;
+      }
       console.error("Failed to load project sessions:", error);
       set({ error: { type: AppErrorType.UNKNOWN, message: String(error) } });
     } finally {
-      set({ isLoadingSessions: false });
+      if (requestId === getRequestId("selectProject")) {
+        set({ isLoadingSessions: false });
+      }
     }
   },
 
   clearProjectSelection: () => {
+    nextRequestId("selectProject");
     set({
       selectedProject: null,
       selectedSession: null,
@@ -350,6 +413,27 @@ export const createProjectSlice: StateCreator<
     get().clearBoard();
     get().setDateFilter({ start: null, end: null });
     get().clearTargetMessage();
+  },
+
+  invalidateProjectSessionsCache: (projectPath, provider) => {
+    set((state) => {
+      if (!projectPath && !provider) {
+        return { projectSessionsCache: {} };
+      }
+
+      const next = { ...state.projectSessionsCache };
+      const providerPrefix = provider ? `${provider}::` : null;
+
+      for (const key of Object.keys(next)) {
+        const matchesProvider = !providerPrefix || key.startsWith(providerPrefix);
+        const matchesProject = !projectPath || key.includes(`::${projectPath}::`);
+        if (matchesProvider && matchesProject) {
+          delete next[key];
+        }
+      }
+
+      return { projectSessionsCache: next };
+    });
   },
 
   setClaudePath: async (path: string) => {

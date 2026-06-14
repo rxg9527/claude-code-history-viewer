@@ -104,6 +104,7 @@ export interface AppStoreState {
   selectedProject: ClaudeProject | null;
   sessions: ClaudeSession[];
   selectedSession: ClaudeSession | null;
+  projectSessionsCache: Record<string, { signature: string; sessions: ClaudeSession[] }>;
   isLoading: boolean;
   isLoadingProjects: boolean;
   isLoadingSessions: boolean;
@@ -211,8 +212,9 @@ export interface AppStoreActions {
   // Project actions
   initializeApp: () => Promise<void>;
   scanProjects: () => Promise<void>;
-  selectProject: (project: ClaudeProject) => Promise<void>;
+  selectProject: (project: ClaudeProject, options?: { forceRefresh?: boolean }) => Promise<void>;
   clearProjectSelection: () => void;
+  invalidateProjectSessionsCache: (projectPath?: string, provider?: string) => void;
   setClaudePath: (path: string) => Promise<void>;
   setError: (error: AppError | null) => void;
   setSelectedSession: (session: ClaudeSession | null) => void;

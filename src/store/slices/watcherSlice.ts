@@ -62,11 +62,20 @@ export const createWatcherSlice: StateCreator<
 
   triggerProjectRefresh: async (projectPath) => {
     try {
-      const { selectedProject, selectProject } = get();
+      const { selectedProject, selectProject, invalidateProjectSessionsCache } = get();
+      const isCodexWatchEvent = projectPath.startsWith("codex://");
+      invalidateProjectSessionsCache(
+        isCodexWatchEvent ? undefined : projectPath,
+        isCodexWatchEvent ? "codex" : undefined
+      );
 
       // If this is the currently selected project, reload its sessions
-      if (selectedProject && selectedProject.path === projectPath) {
-        await selectProject(selectedProject);
+      if (
+        selectedProject &&
+        (selectedProject.path === projectPath ||
+          (isCodexWatchEvent && selectedProject.provider === "codex"))
+      ) {
+        await selectProject(selectedProject, { forceRefresh: true });
       }
     } catch (error) {
       get().setError({
@@ -81,7 +90,12 @@ export const createWatcherSlice: StateCreator<
 
   triggerSessionRefresh: async (projectPath, sessionPath) => {
     try {
-      const { selectedSession, selectSession } = get();
+      const { selectedSession, selectSession, invalidateProjectSessionsCache } = get();
+      const isCodexWatchEvent = projectPath.startsWith("codex://");
+      invalidateProjectSessionsCache(
+        isCodexWatchEvent ? undefined : projectPath,
+        isCodexWatchEvent ? "codex" : undefined
+      );
 
       // If this is the currently selected session, reload its messages
       if (selectedSession && selectedSession.file_path === sessionPath) {

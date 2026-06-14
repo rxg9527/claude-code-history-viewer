@@ -9,10 +9,16 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::UNIX_EPOCH;
 use walkdir::WalkDir;
 
 const VSCODE_CONTEXT_PREFIX: &str = "# Context from my IDE setup:";
 const CODEX_REQUEST_MARKER: &str = "my request for codex";
+
+lazy_static::lazy_static! {
+    static ref SESSION_INDEX_CACHE: Mutex<Option<CodexSessionIndex>> = Mutex::new(None);
+}
 
 /// Detect Codex CLI installation
 pub fn detect() -> Option<ProviderInfo> {
@@ -81,11 +87,6 @@ fn project_name_from_cwd(cwd: &str) -> String {
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| cwd.to_string())
-}
-
-fn load_thread_titles() -> Result<HashMap<String, CodexThreadTitle>, String> {
-    let base_path = get_base_path().ok_or_else(|| "Codex not found".to_string())?;
-    load_thread_titles_from_index(&Path::new(&base_path).join("session_index.jsonl"))
 }
 
 fn load_thread_titles_from_index(
@@ -177,6 +178,7 @@ fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<
 }
 
 /// Session metadata extracted from rollout files
+#[derive(Clone)]
 struct SessionInfo {
     session_id: String,
     cwd: Option<String>,
@@ -197,8 +199,84 @@ struct CodexThreadTitle {
     updated_at: String,
 }
 
-/// Scan Codex projects from a specific base path.
-pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+#[derive(Clone)]
+struct CodexSessionIndex {
+    base_path: String,
+    thread_index_modified: Option<u128>,
+    projects: Vec<ClaudeProject>,
+    sessions_by_cwd: HashMap<String, Vec<ClaudeSession>>,
+}
+
+pub fn invalidate_session_index_cache() {
+    if let Ok(mut cache) = SESSION_INDEX_CACHE.lock() {
+        *cache = None;
+    }
+}
+
+fn get_cached_session_index(base_path: &str) -> Option<CodexSessionIndex> {
+    let thread_index_modified = get_thread_index_modified(base_path);
+    SESSION_INDEX_CACHE.lock().ok().and_then(|cache| {
+        cache
+            .as_ref()
+            .filter(|index| {
+                index.base_path == base_path && index.thread_index_modified == thread_index_modified
+            })
+            .cloned()
+    })
+}
+
+fn store_session_index(index: CodexSessionIndex) {
+    if let Ok(mut cache) = SESSION_INDEX_CACHE.lock() {
+        *cache = Some(index);
+    }
+}
+
+fn load_thread_titles_from_base_path(
+    base_path: &str,
+) -> Result<HashMap<String, CodexThreadTitle>, String> {
+    load_thread_titles_from_index(&Path::new(base_path).join("session_index.jsonl"))
+}
+
+fn get_thread_index_modified(base_path: &str) -> Option<u128> {
+    fs::metadata(Path::new(base_path).join("session_index.jsonl"))
+        .ok()?
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_nanos())
+}
+
+fn session_info_to_claude_session(
+    info: SessionInfo,
+    cwd: &str,
+    thread_titles: &HashMap<String, CodexThreadTitle>,
+) -> ClaudeSession {
+    let thread_title = thread_titles
+        .get(&info.session_id)
+        .map(|title| title.name.clone());
+    let is_renamed = thread_title.is_some();
+
+    ClaudeSession {
+        session_id: info.file_path.clone(),
+        actual_session_id: info.session_id,
+        file_path: info.file_path,
+        project_name: project_name_from_cwd(cwd),
+        message_count: info.message_count,
+        first_message_time: info.first_message_time,
+        last_message_time: info.last_message_time,
+        last_modified: info.last_modified,
+        has_tool_use: info.has_tool_use,
+        has_errors: false,
+        summary: thread_title.or(info.summary),
+        is_renamed,
+        provider: Some("codex".to_string()),
+        storage_type: None,
+        entrypoint: None,
+    }
+}
+
+fn build_session_index(base_path: &str) -> Result<CodexSessionIndex, String> {
     crate::utils::require_absolute_path(base_path, "Codex base path")?;
     let base = Path::new(base_path);
 
@@ -215,11 +293,16 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         .collect();
 
     if session_dirs.is_empty() {
-        return Ok(vec![]);
+        return Ok(CodexSessionIndex {
+            base_path: base_path.to_string(),
+            thread_index_modified: get_thread_index_modified(base_path),
+            projects: Vec::new(),
+            sessions_by_cwd: HashMap::new(),
+        });
     }
 
-    // Group sessions by cwd
-    let mut project_map: HashMap<String, Vec<SessionInfo>> = HashMap::new();
+    let thread_titles = load_thread_titles_from_base_path(base_path).unwrap_or_default();
+    let mut sessions_by_cwd: HashMap<String, Vec<ClaudeSession>> = HashMap::new();
 
     for session_dir in session_dirs {
         for entry in WalkDir::new(session_dir)
@@ -233,15 +316,20 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
             if let Ok(info) = extract_session_info(rollout_path) {
                 let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
-                project_map.entry(cwd).or_default().push(info);
+                let session = session_info_to_claude_session(info, &cwd, &thread_titles);
+                sessions_by_cwd.entry(cwd).or_default().push(session);
             }
         }
     }
 
-    let mut projects: Vec<ClaudeProject> = project_map
-        .into_iter()
+    for sessions in sessions_by_cwd.values_mut() {
+        sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    }
+
+    let mut projects: Vec<ClaudeProject> = sessions_by_cwd
+        .iter()
         .map(|(cwd, sessions)| {
-            let name = project_name_from_cwd(&cwd);
+            let name = project_name_from_cwd(cwd);
 
             let session_count = sessions.len();
             let message_count: usize = sessions.iter().map(|s| s.message_count).sum();
@@ -255,7 +343,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             ClaudeProject {
                 name,
                 path: format!("codex://{cwd}"),
-                actual_path: cwd,
+                actual_path: cwd.clone(),
                 session_count,
                 message_count,
                 last_modified,
@@ -268,6 +356,20 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         .collect();
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+
+    Ok(CodexSessionIndex {
+        base_path: base_path.to_string(),
+        thread_index_modified: get_thread_index_modified(base_path),
+        projects,
+        sessions_by_cwd,
+    })
+}
+
+/// Scan Codex projects from a specific base path.
+pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    let index = build_session_index(base_path)?;
+    let projects = index.projects.clone();
+    store_session_index(index);
     Ok(projects)
 }
 
@@ -282,63 +384,28 @@ pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    let session_dirs = get_existing_session_dirs()?;
-    let thread_titles = load_thread_titles().unwrap_or_default();
-
-    if session_dirs.is_empty() {
-        return Ok(vec![]);
-    }
+    let base_path = get_base_path().ok_or_else(|| "Codex base path not found".to_string())?;
 
     // Extract cwd from virtual path "codex://{cwd}"
     let target_cwd = project_path
         .strip_prefix("codex://")
         .unwrap_or(project_path);
 
-    let mut sessions = Vec::new();
-
-    for session_dir in session_dirs {
-        for entry in WalkDir::new(session_dir)
-            .min_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| is_rollout_jsonl(e.path()))
-        {
-            let rollout_path = entry.path();
-
-            if let Ok(info) = extract_session_info(rollout_path) {
-                let session_cwd = info.cwd.as_deref().unwrap_or("");
-                if session_cwd != target_cwd {
-                    continue;
-                }
-
-                let thread_title = thread_titles
-                    .get(&info.session_id)
-                    .map(|title| title.name.clone());
-                let is_renamed = thread_title.is_some();
-
-                sessions.push(ClaudeSession {
-                    session_id: info.file_path.clone(),
-                    actual_session_id: info.session_id,
-                    file_path: info.file_path,
-                    project_name: project_name_from_cwd(target_cwd),
-                    message_count: info.message_count,
-                    first_message_time: info.first_message_time,
-                    last_message_time: info.last_message_time,
-                    last_modified: info.last_modified,
-                    has_tool_use: info.has_tool_use,
-                    has_errors: false,
-                    summary: thread_title.or(info.summary),
-                    is_renamed,
-                    provider: Some("codex".to_string()),
-                    storage_type: None,
-                    entrypoint: None,
-                });
-            }
-        }
+    if let Some(index) = get_cached_session_index(&base_path) {
+        return Ok(index
+            .sessions_by_cwd
+            .get(target_cwd)
+            .cloned()
+            .unwrap_or_default());
     }
 
-    sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    let index = build_session_index(&base_path)?;
+    let sessions = index
+        .sessions_by_cwd
+        .get(target_cwd)
+        .cloned()
+        .unwrap_or_default();
+    store_session_index(index);
     Ok(sessions)
 }
 
@@ -2484,6 +2551,7 @@ mod tests {
     #[test]
     #[serial]
     fn load_sessions_includes_archived_sessions() {
+        invalidate_session_index_cache();
         let tmp = TempDir::new().expect("temp dir should be created");
         let codex_home = tmp.path().join("codex-home");
         let sessions_dir = codex_home
@@ -2552,6 +2620,71 @@ mod tests {
         assert!(sessions
             .iter()
             .any(|s| s.file_path.contains("/archived_sessions/")));
+        invalidate_session_index_cache();
+    }
+
+    #[test]
+    #[serial]
+    fn scan_projects_populates_session_index_for_fast_loads() {
+        invalidate_session_index_cache();
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("02")
+            .join("21");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let project_cwd = "/Users/jack/client/fast-project";
+        let rollout_path = sessions_dir.join("rollout-fast-load.jsonl");
+        let lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "fast-session", "cwd": project_cwd }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "fallback title" }]
+                }
+            }),
+        ];
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+        fs::write(
+            codex_home.join("session_index.jsonl"),
+            json!({
+                "id": "fast-session",
+                "thread_name": "Renamed fast session",
+                "updated_at": "2026-02-21T10:01:00Z"
+            })
+            .to_string()
+                + "\n",
+        )
+        .expect("thread title index should be written");
+
+        let projects = scan_projects_from_path(&codex_home.to_string_lossy())
+            .expect("projects should be scanned");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].path, format!("codex://{project_cwd}"));
+
+        fs::remove_file(&rollout_path).expect("fixture should be removable after scan");
+        let sessions = load_sessions(&format!("codex://{project_cwd}"), false)
+            .expect("sessions should be loaded from cache");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].summary.as_deref(), Some("Renamed fast session"));
+        assert!(sessions[0].is_renamed);
+        invalidate_session_index_cache();
     }
 
     #[test]
