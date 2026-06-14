@@ -3,12 +3,11 @@ import { useModal } from "@/contexts/modal";
 
 export const GlobalSearchModalContainer: React.FC = () => {
     const { isOpen, closeModal } = useModal();
-
-    if (!isOpen("globalSearch")) return null;
+    const globalSearchOpen = isOpen("globalSearch");
 
     return (
         <GlobalSearchModal
-            isOpen={true}
+            isOpen={globalSearchOpen}
             onClose={() => closeModal("globalSearch")}
         />
     );

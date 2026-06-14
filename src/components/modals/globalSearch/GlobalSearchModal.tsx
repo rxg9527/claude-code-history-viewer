@@ -164,6 +164,7 @@ export const GlobalSearchModal = ({
                 setIsSearching(false);
                 setIsLoadingMore(false);
                 setHasMoreResults(false);
+                setSelectedIndex(0);
                 return;
             }
 
@@ -309,12 +310,10 @@ export const GlobalSearchModal = ({
                 // Session not found in any project
                 clearTargetMessage();
                 toast.error(t("globalSearch.sessionNotFound"));
-                onClose();
             } catch (error) {
                 clearTargetMessage();
                 console.error("Failed to navigate to search result:", error);
                 toast.error(t("globalSearch.navigationFailed"));
-                onClose();
             }
         },
         [projects, sessions, selectProject, selectSession, navigateToMessage, clearTargetMessage, onClose, t],
@@ -353,29 +352,26 @@ export const GlobalSearchModal = ({
         [flattenedResults, selectedIndex, handleSelectResult, onClose],
     );
 
-    // Scroll selected item into view
+    // Scroll selected item into view. Dialog content is mounted only when open,
+    // so reopening the modal must also restore the viewport to the saved index.
     useEffect(() => {
-        if (resultsContainerRef.current && flattenedResults.length > 0) {
+        if (!isOpen || flattenedResults.length === 0) return;
+
+        const timeoutId = window.setTimeout(() => {
+            if (!resultsContainerRef.current) return;
             const selectedElement = resultsContainerRef.current.querySelector(
                 `[data-index="${selectedIndex}"]`,
             );
             selectedElement?.scrollIntoView({ block: "nearest" });
-        }
-    }, [selectedIndex, flattenedResults.length]);
+        }, 0);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [isOpen, selectedIndex, flattenedResults.length]);
 
     // Focus input when modal opens
     useEffect(() => {
         if (isOpen) {
             setTimeout(() => inputRef.current?.focus(), 0);
-        } else {
-            setQuery("");
-            setResults([]);
-            setHasMoreResults(false);
-            setIsLoadingMore(false);
-            setSelectedIndex(0);
-            setSelectedProjectPath("all");
-            setMessageTypeFilter("all");
-            setSearchScope("text");
         }
     }, [isOpen]);
 
@@ -585,6 +581,7 @@ export const GlobalSearchModal = ({
                                 setResults([]);
                                 setHasMoreResults(false);
                                 setIsLoadingMore(false);
+                                setSelectedIndex(0);
                                 inputRef.current?.focus();
                             }}
                             className="p-1 hover:bg-muted rounded"
@@ -774,7 +771,10 @@ export const GlobalSearchModal = ({
                                                             <button
                                                                 key={result.uuid}
                                                                 data-index={index}
-                                                                onClick={() => handleSelectResult(result)}
+                                                                onClick={() => {
+                                                                    setSelectedIndex(index);
+                                                                    handleSelectResult(result);
+                                                                }}
                                                                 className={cn(
                                                                     "w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors",
                                                                     isSelected && "bg-muted"
