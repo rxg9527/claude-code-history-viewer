@@ -243,7 +243,11 @@ export const GlobalSearchModal = ({
 
     // Navigate to selected result
     const handleSelectResult = useCallback(
-        async (result: GlobalSearchResult) => {
+        async (
+            result: GlobalSearchResult,
+            options: { openMessage?: boolean } = {},
+        ) => {
+            const openMessage = options.openMessage ?? true;
             try {
                 let targetSession = sessions.find(
                     (s) =>
@@ -252,7 +256,11 @@ export const GlobalSearchModal = ({
                 );
 
                 if (targetSession) {
-                    if (result.uuid) navigateToMessage(result.uuid);
+                    if (openMessage && result.uuid) {
+                        navigateToMessage(result.uuid);
+                    } else {
+                        clearTargetMessage();
+                    }
                     await selectSession(targetSession);
                     onClose();
                     return;
@@ -280,7 +288,11 @@ export const GlobalSearchModal = ({
                         );
 
                         if (targetSession) {
-                            if (result.uuid) navigateToMessage(result.uuid);
+                            if (openMessage && result.uuid) {
+                                navigateToMessage(result.uuid);
+                            } else {
+                                clearTargetMessage();
+                            }
                             await selectProject(project);
                             await selectSession(targetSession);
                             onClose();
@@ -728,19 +740,31 @@ export const GlobalSearchModal = ({
 
                                         {/* Sessions in this project */}
                                         {Array.from(group.sessions.entries()).map(
-                                            ([sessionKey, sessionGroup]) => (
-                                                <div key={sessionKey}>
-                                                    <div className="px-4 py-1.5 bg-muted/90 backdrop-blur sticky top-[28px] z-10 border-t border-border/60 flex items-center gap-2">
-                                                        <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                                                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
-                                                            {sessionGroup.label}
-                                                        </span>
-                                                        <span className="text-xs text-muted-foreground/70 shrink-0">
-                                                            {t("globalSearch.results", {
-                                                                count: sessionGroup.items.length,
-                                                            })}
-                                                        </span>
-                                                    </div>
+                                            ([sessionKey, sessionGroup]) => {
+                                                const sessionStartIndex = currentResultIndex;
+                                                const firstSessionResult = sessionGroup.items[0];
+
+                                                return (
+                                                    <div key={sessionKey}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (!firstSessionResult) return;
+                                                                setSelectedIndex(sessionStartIndex);
+                                                                handleSelectResult(firstSessionResult, { openMessage: false });
+                                                            }}
+                                                            className="w-full px-4 py-1.5 bg-muted/90 hover:bg-muted backdrop-blur sticky top-[28px] z-10 border-t border-border/60 flex items-center gap-2 text-left transition-colors"
+                                                        >
+                                                            <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
+                                                                {sessionGroup.label}
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground/70 shrink-0">
+                                                                {t("globalSearch.results", {
+                                                                    count: sessionGroup.items.length,
+                                                                })}
+                                                            </span>
+                                                        </button>
 
                                                     {sessionGroup.items.map((result) => {
                                                         const index = currentResultIndex++;
@@ -786,7 +810,8 @@ export const GlobalSearchModal = ({
                                                         );
                                                     })}
                                                 </div>
-                                            ),
+                                                );
+                                            },
                                         )}
                                     </div>
                                 ),
