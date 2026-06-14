@@ -34,6 +34,17 @@ interface PreviewPart {
     text: string;
 }
 
+interface SessionSearchGroup {
+    label: string;
+    items: GlobalSearchResult[];
+}
+
+interface ProjectSearchGroup {
+    label: string;
+    provider?: string;
+    sessions: Map<string, SessionSearchGroup>;
+}
+
 interface GlobalSearchModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -63,9 +74,35 @@ export const GlobalSearchModal = ({
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
 
-    // Group results by project name
+    const findSessionForResult = useCallback((result: GlobalSearchResult): ClaudeSession | undefined => {
+        if (!result.sessionId) return undefined;
+        return sessions.find(
+            (session) =>
+                session.session_id === result.sessionId ||
+                session.actual_session_id === result.sessionId,
+        );
+    }, [sessions]);
+
+    const getSessionGroupLabel = useCallback((result: GlobalSearchResult): string => {
+        const matchedSession = findSessionForResult(result);
+        const fallback = matchedSession?.summary || result.sessionId || result.uuid;
+        const candidateIds = [
+            matchedSession?.session_id,
+            result.sessionId,
+            matchedSession?.actual_session_id,
+        ].filter((id): id is string => Boolean(id));
+
+        for (const id of new Set(candidateIds)) {
+            const customName = getSessionDisplayName(id);
+            if (customName) return customName;
+        }
+
+        return fallback;
+    }, [findSessionForResult, getSessionDisplayName]);
+
+    // Group results by project, then by session/thread.
     const groupedResults = useMemo(() => {
-        const groups = new Map<string, { label: string; provider?: string; items: GlobalSearchResult[] }>();
+        const groups = new Map<string, ProjectSearchGroup>();
 
         for (const result of results) {
             const projectName =
@@ -78,28 +115,35 @@ export const GlobalSearchModal = ({
             const groupLabel = `${projectName} (${providerLabel})`;
 
             if (!groups.has(groupKey)) {
-                groups.set(groupKey, { label: groupLabel, provider: result.provider, items: [] });
+                groups.set(groupKey, { label: groupLabel, provider: result.provider, sessions: new Map() });
             }
-            groups.get(groupKey)!.items.push(result);
+
+            const matchedSession = findSessionForResult(result);
+            const sessionId = matchedSession?.session_id || result.sessionId || result.uuid;
+            const sessionGroupKey = `${result.provider ?? "claude"}::${projectName}::${sessionId}`;
+            const projectGroup = groups.get(groupKey)!;
+            if (!projectGroup.sessions.has(sessionGroupKey)) {
+                projectGroup.sessions.set(sessionGroupKey, {
+                    label: getSessionGroupLabel(result),
+                    items: [],
+                });
+            }
+            projectGroup.sessions.get(sessionGroupKey)!.items.push(result);
         }
 
         return groups;
-    }, [results, t]);
+    }, [results, findSessionForResult, getSessionGroupLabel, t]);
 
     // Flatten grouped results for keyboard navigation
     const flattenedResults = useMemo(() => {
         const flat: GlobalSearchResult[] = [];
         for (const group of groupedResults.values()) {
-            flat.push(...group.items);
+            for (const sessionGroup of group.sessions.values()) {
+                flat.push(...sessionGroup.items);
+            }
         }
         return flat;
     }, [groupedResults]);
-
-    // Get session display name for a search result
-    const getSessionName = useCallback((result: GlobalSearchResult): string | undefined => {
-        if (!result.sessionId) return undefined;
-        return getSessionDisplayName(result.sessionId);
-    }, [getSessionDisplayName]);
 
     // Debounced search
     const performSearch = useCallback(
@@ -678,58 +722,68 @@ export const GlobalSearchModal = ({
                                             <span className="truncate">{group.label}</span>
                                         </div>
 
-                                        {/* Results in this project */}
-                                        {group.items.map((result) => {
-                                            const index = currentResultIndex++;
-                                            const isSelected = index === selectedIndex;
-
-                                            return (
-                                                <button
-                                                    key={result.uuid}
-                                                    data-index={index}
-                                                    onClick={() => handleSelectResult(result)}
-                                                    className={cn(
-                                                        "w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors",
-                                                        isSelected && "bg-muted"
-                                                    )}
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <span
-                                                                    className={cn(
-                                                                        "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium",
-                                                                        result.type === "user"
-                                                                            ? "bg-blue-500/10 text-blue-500"
-                                                                            : result.type === "assistant"
-                                                                              ? "bg-amber-500/10 text-amber-500"
-                                                                              : "bg-gray-500/10 text-gray-500"
-                                                                    )}
-                                                                >
-                                                                    {result.type === "user" && <User className="w-3 h-3" />}
-                                                                    {result.type === "assistant" && <Bot className="w-3 h-3" />}
-                                                                    {result.type}
-                                                                </span>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {formatTimestamp(result.timestamp)}
-                                                                </span>
-                                                            </div>
-                                                            {(() => {
-                                                                const sessionName = getSessionName(result);
-                                                                return sessionName ? (
-                                                                    <p className="text-xs text-muted-foreground/70 truncate mb-0.5">
-                                                                        {sessionName}
-                                                                    </p>
-                                                                ) : null;
-                                                            })()}
-                                                            <p className="text-sm text-foreground line-clamp-2">
-                                                                {highlightText(getPreviewText(result))}
-                                                            </p>
-                                                        </div>
+                                        {/* Sessions in this project */}
+                                        {Array.from(group.sessions.entries()).map(
+                                            ([sessionKey, sessionGroup]) => (
+                                                <div key={sessionKey}>
+                                                    <div className="px-4 py-1.5 bg-muted/45 border-t border-border/60 flex items-center gap-2">
+                                                        <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
+                                                            {sessionGroup.label}
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground/70 shrink-0">
+                                                            {t("globalSearch.results", {
+                                                                count: sessionGroup.items.length,
+                                                            })}
+                                                        </span>
                                                     </div>
-                                                </button>
-                                            );
-                                        })}
+
+                                                    {sessionGroup.items.map((result) => {
+                                                        const index = currentResultIndex++;
+                                                        const isSelected = index === selectedIndex;
+
+                                                        return (
+                                                            <button
+                                                                key={result.uuid}
+                                                                data-index={index}
+                                                                onClick={() => handleSelectResult(result)}
+                                                                className={cn(
+                                                                    "w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors",
+                                                                    isSelected && "bg-muted"
+                                                                )}
+                                                            >
+                                                                <div className="flex items-start gap-3">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-2 mb-1">
+                                                                            <span
+                                                                                className={cn(
+                                                                                    "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium",
+                                                                                    result.type === "user"
+                                                                                        ? "bg-blue-500/10 text-blue-500"
+                                                                                        : result.type === "assistant"
+                                                                                          ? "bg-amber-500/10 text-amber-500"
+                                                                                          : "bg-gray-500/10 text-gray-500"
+                                                                                )}
+                                                                            >
+                                                                                {result.type === "user" && <User className="w-3 h-3" />}
+                                                                                {result.type === "assistant" && <Bot className="w-3 h-3" />}
+                                                                                {result.type}
+                                                                            </span>
+                                                                            <span className="text-xs text-muted-foreground">
+                                                                                {formatTimestamp(result.timestamp)}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-sm text-foreground line-clamp-2">
+                                                                            {highlightText(getPreviewText(result))}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ),
+                                        )}
                                     </div>
                                 ),
                             )}
