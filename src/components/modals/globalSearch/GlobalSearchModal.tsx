@@ -18,7 +18,7 @@ import { Dialog, DialogContent, Input } from "@/components/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useAppStore } from "@/store/useAppStore";
-import type { ClaudeMessage, ClaudeSession, ContentItem } from "@/types";
+import type { ClaudeMessage, ClaudeSession, ContentItem, SearchScopeFilter } from "@/types";
 import { getProviderLabel, hasNonDefaultProvider, getProviderBadgeStyle } from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,7 +26,6 @@ import { toast } from "sonner";
 type GlobalSearchResult = ClaudeMessage;
 
 type MessageTypeFilter = "all" | "user" | "assistant";
-type SearchScopeFilter = "text" | "textThinking" | "textTools" | "textToolResults" | "all";
 
 type PreviewKind = "text" | "thinking" | "tool" | "toolResult" | "structured";
 

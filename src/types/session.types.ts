@@ -81,11 +81,13 @@ export interface SubagentSession {
 // Search Filters
 // ============================================================================
 
+export type SearchScopeFilter = "text" | "textThinking" | "textTools" | "textToolResults" | "all";
+
 export interface SearchFilters {
   dateRange?: [Date, Date];
   projects?: string[];
   messageType?: "user" | "assistant" | "all";
-  searchScope?: "text" | "textThinking" | "textTools" | "textToolResults" | "all";
+  searchScope?: SearchScopeFilter;
   hasToolCalls?: boolean;
   hasErrors?: boolean;
   hasFileChanges?: boolean;

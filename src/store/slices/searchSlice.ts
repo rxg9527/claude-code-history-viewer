@@ -5,7 +5,7 @@
  */
 
 import { api } from "@/services/api";
-import type { ClaudeMessage, SearchFilters } from "../../types";
+import type { ClaudeMessage, SearchFilters, SearchScopeFilter } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import { searchMessages as searchMessagesFromIndex } from "../../utils/searchIndex";
@@ -38,6 +38,7 @@ export interface SearchSliceActions {
   // Session search
   setSessionSearchQuery: (query: string) => void;
   setSearchFilterType: (filterType: SearchFilterType) => void;
+  setSessionSearchScope: (searchScope: SearchScopeFilter) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
   goToMatchIndex: (index: number) => void;
@@ -60,6 +61,7 @@ const initialSearchState: SearchSliceState = {
     currentMatchIndex: -1,
     isSearching: false,
     filterType: "content" as SearchFilterType,
+    searchScope: "text" as SearchScopeFilter,
     results: [],
   },
 };
@@ -120,12 +122,15 @@ export const createSearchSlice: StateCreator<
   // Session search (KakaoTalk-style navigation)
   setSessionSearchQuery: (query: string) => {
     const { messages, sessionSearch } = get();
-    const { filterType } = sessionSearch;
+    const { filterType, searchScope } = sessionSearch;
 
     // Empty query clears search results
     if (!query.trim()) {
       set((state) => ({
-        sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
+        sessionSearch: createEmptySearchState(
+          state.sessionSearch.filterType,
+          state.sessionSearch.searchScope
+        ),
       }));
       return;
     }
@@ -141,7 +146,7 @@ export const createSearchSlice: StateCreator<
 
     try {
       // FlexSearch high-speed search (inverted index O(1) ~ O(log n))
-      const searchResults = searchMessagesFromIndex(query, filterType);
+      const searchResults = searchMessagesFromIndex(query, filterType, searchScope);
 
       // Convert to SearchMatch format (filter valid indices)
       const matches: SearchMatch[] = searchResults
@@ -164,6 +169,7 @@ export const createSearchSlice: StateCreator<
           currentMatchIndex: matches.length > 0 ? 0 : -1,
           isSearching: false,
           filterType: state.sessionSearch.filterType,
+          searchScope: state.sessionSearch.searchScope,
           results: matches
             .map((m) => messages[m.messageIndex])
             .filter((m): m is ClaudeMessage => m !== undefined),
@@ -178,6 +184,7 @@ export const createSearchSlice: StateCreator<
           currentMatchIndex: -1,
           isSearching: false,
           filterType: state.sessionSearch.filterType,
+          searchScope: state.sessionSearch.searchScope,
           results: [],
         },
       }));
@@ -237,13 +244,28 @@ export const createSearchSlice: StateCreator<
 
   clearSessionSearch: () => {
     set((state) => ({
-      sessionSearch: createEmptySearchState(state.sessionSearch.filterType),
+      sessionSearch: createEmptySearchState(
+        state.sessionSearch.filterType,
+        state.sessionSearch.searchScope
+      ),
     }));
   },
 
   setSearchFilterType: (filterType: SearchFilterType) => {
-    set(() => ({
-      sessionSearch: createEmptySearchState(filterType),
+    set((state) => ({
+      sessionSearch: createEmptySearchState(
+        filterType,
+        state.sessionSearch.searchScope
+      ),
+    }));
+  },
+
+  setSessionSearchScope: (searchScope: SearchScopeFilter) => {
+    set((state) => ({
+      sessionSearch: createEmptySearchState(
+        state.sessionSearch.filterType,
+        searchScope
+      ),
     }));
   },
 });

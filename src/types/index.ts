@@ -104,6 +104,7 @@ export type {
   ProviderInfo,
   ClaudeProject,
   ClaudeSession,
+  SearchScopeFilter,
   SearchFilters,
 } from "./core/session";
 

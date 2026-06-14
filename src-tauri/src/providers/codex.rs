@@ -1,6 +1,7 @@
 use super::ProviderInfo;
+use crate::commands::session::{build_matcher, content_matches_scope, SearchScope};
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
-use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
+use crate::utils::{build_provider_message, find_line_ranges};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use serde_json::Value;
@@ -414,14 +415,18 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 }
 
 /// Search Codex sessions for a query string
-pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+pub(crate) fn search(
+    query: &str,
+    limit: usize,
+    search_scope: SearchScope,
+) -> Result<Vec<ClaudeMessage>, String> {
     let session_dirs = get_existing_session_dirs()?;
 
     if session_dirs.is_empty() {
         return Ok(vec![]);
     }
 
-    let query_lower = query.to_lowercase();
+    let matcher = build_matcher(query);
     let mut results = Vec::new();
 
     for session_dir in session_dirs {
@@ -441,7 +446,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                     }
 
                     if let Some(content) = &msg.content {
-                        if search_json_value_case_insensitive(content, &query_lower) {
+                        if content_matches_scope(content, &matcher, search_scope) {
                             results.push(msg);
                         }
                     }
@@ -2032,6 +2037,57 @@ mod tests {
             .iter()
             .all(|m| m.provider.as_deref() == Some("codex")));
         assert!(messages.iter().all(|m| m.session_id == "sess-1"));
+    }
+
+    #[test]
+    #[serial]
+    fn search_applies_scope_before_limit() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home.join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+        let rollout_path = sessions_dir.join("rollout-search-scope.jsonl");
+
+        let lines = [
+            json!({
+                "timestamp": "2026-03-01T10:00:00Z",
+                "type": "session_meta",
+                "payload": { "id": "sess-search-scope" }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:01Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "tool-output",
+                    "type": "function_call_output",
+                    "call_id": "call-1",
+                    "output": "needle from tool result"
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:02Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "text-output",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{ "type": "output_text", "text": "needle from plain text" }]
+                }
+            }),
+        ];
+
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let results = search("needle", 1, SearchScope::Text).expect("search should succeed");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].uuid, "text-output");
     }
 
     #[test]

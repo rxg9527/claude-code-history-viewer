@@ -15,6 +15,7 @@ import type {
   SessionComparison,
   GlobalStatsSummary,
   SearchFilters,
+  SearchScopeFilter,
   RecentEditsResult,
   UserMetadata,
   SessionMetadata,
@@ -52,6 +53,7 @@ export interface SearchState {
   currentMatchIndex: number;
   isSearching: boolean;
   filterType: SearchFilterType;
+  searchScope: SearchScopeFilter;
   /** @deprecated Use matches field. Kept for backward compatibility. */
   results: ClaudeMessage[];
 }
@@ -75,13 +77,15 @@ export type StoreGet<T> = () => T;
 
 /** Create empty search state while preserving filterType */
 export const createEmptySearchState = (
-  filterType: SearchFilterType
+  filterType: SearchFilterType,
+  searchScope: SearchScopeFilter = "text"
 ): SearchState => ({
   query: "",
   matches: [],
   currentMatchIndex: -1,
   isSearching: false,
   filterType,
+  searchScope,
   results: [],
 });
 
@@ -235,6 +239,7 @@ export interface AppStoreActions {
   setSearchFilters: (filters: SearchFilters) => void;
   setSessionSearchQuery: (query: string) => void;
   setSearchFilterType: (filterType: SearchFilterType) => void;
+  setSessionSearchScope: (searchScope: SearchScopeFilter) => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
   goToMatchIndex: (index: number) => void;

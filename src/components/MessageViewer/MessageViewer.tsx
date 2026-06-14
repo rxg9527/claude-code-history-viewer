@@ -41,13 +41,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ExportFormat } from "@/types/export";
-import type { SubagentSession } from "@/types";
+import type { SearchScopeFilter, SubagentSession } from "@/types";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
 const SUBAGENT_ROW_HEIGHT_REM = 1.75;
 const SUBAGENT_PANEL_VISIBLE_ROWS = 3;
 const SUBAGENT_PANEL_MAX_HEIGHT_REM =
   SUBAGENT_ROW_HEIGHT_REM * SUBAGENT_PANEL_VISIBLE_ROWS + 1;
+
+const SESSION_SEARCH_SCOPES: SearchScopeFilter[] = [
+  "text",
+  "textThinking",
+  "textTools",
+  "textToolResults",
+  "all",
+];
 
 const SubagentSessionsPanel = memo(function SubagentSessionsPanel({
   subagentSessions,
@@ -115,6 +123,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   sessionSearch,
   onSearchChange,
   onFilterTypeChange,
+  onSearchScopeChange,
   onClearSearch,
   onNextMatch,
   onPrevMatch,
@@ -698,7 +707,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           </button>
         )}
 
-        {/* Filter Toggle - Segmented control style */}
+        {/* Search mode and scope */}
         <div className="shrink-0 flex items-center bg-zinc-800/60 rounded-lg p-0.5 border border-zinc-700/40 order-2 lg:order-none">
           <button
             type="button"
@@ -726,6 +735,42 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           >
             {t("messageViewer.filterToolId")}
           </button>
+
+          {sessionSearch.filterType === "content" && (
+            <>
+              <div className="mx-1 h-4 w-px bg-zinc-700/70" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-all duration-200 whitespace-nowrap",
+                      "text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700/70"
+                    )}
+                    title={t("globalSearch.scope.placeholder")}
+                  >
+                    <span className="text-zinc-500">{t("globalSearch.scope.placeholder")}:</span>
+                    <span>{t(`globalSearch.scope.${sessionSearch.searchScope}`)}</span>
+                    <ChevronDown className="w-3 h-3 text-zinc-500" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {SESSION_SEARCH_SCOPES.map((scope) => (
+                    <DropdownMenuItem
+                      key={scope}
+                      onClick={() => onSearchScopeChange(scope)}
+                      className={cn(
+                        "text-xs",
+                        sessionSearch.searchScope === scope && "font-medium"
+                      )}
+                    >
+                      {t(`globalSearch.scope.${scope}`)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
 
         {/* Search Input - Glass morphism */}

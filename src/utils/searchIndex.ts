@@ -1,5 +1,5 @@
 import FlexSearch from "flexsearch";
-import type { ClaudeMessage } from "../types";
+import type { ClaudeMessage, SearchScopeFilter } from "../types";
 import type { SearchFilterType } from "../store/useAppStore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,9 +16,23 @@ const hasStringProperty = (obj: Record<string, unknown>, key: string): boolean =
 
 // 검색 가능한 텍스트 추출 (content 검색용)
 const MAX_TEXT_LENGTH = 10000; // 최대 10KB만 인덱싱 (텍스트용)
+const SEARCH_SCOPES: SearchScopeFilter[] = [
+  "text",
+  "textThinking",
+  "textTools",
+  "textToolResults",
+  "all",
+];
 
-const extractSearchableText = (message: ClaudeMessage): string => {
+const extractSearchableText = (
+  message: ClaudeMessage,
+  searchScope: SearchScopeFilter = "all"
+): string => {
   const parts: string[] = [];
+  const includeThinking = searchScope === "textThinking" || searchScope === "all";
+  const includeToolCalls = searchScope === "textTools" || searchScope === "all";
+  const includeToolResults = searchScope === "textToolResults" || searchScope === "all";
+  const includeStructured = searchScope === "all";
 
   try {
     // content 추출
@@ -42,25 +56,31 @@ const extractSearchableText = (message: ClaudeMessage): string => {
               parts.push((item.text as string).slice(0, MAX_TEXT_LENGTH));
             }
             // thinking content (길이 제한)
-            if (hasStringProperty(item, "thinking")) {
+            if (includeThinking && hasStringProperty(item, "thinking")) {
               parts.push((item.thinking as string).slice(0, MAX_TEXT_LENGTH));
             }
+            if (includeThinking && hasStringProperty(item, "reasoning")) {
+              parts.push((item.reasoning as string).slice(0, MAX_TEXT_LENGTH));
+            }
+            if (includeThinking && hasStringProperty(item, "summary")) {
+              parts.push((item.summary as string).slice(0, MAX_TEXT_LENGTH));
+            }
             // tool_use: name
-            if (itemType === "tool_use" && hasStringProperty(item, "name")) {
-              parts.push(item.name as string);
+            if (includeToolCalls && itemType === "tool_use") {
+              extractRecordStringValues(item, parts);
             }
             // tool_result: content
-            if (itemType === "tool_result" && hasStringProperty(item, "content")) {
-              parts.push(item.content as string);
+            if (includeToolResults && itemType === "tool_result") {
+              extractRecordStringValues(item, parts);
             }
             // server_tool_use: name
-            if (itemType === "server_tool_use" && hasStringProperty(item, "name")) {
-              parts.push(item.name as string);
+            if (includeToolCalls && itemType === "server_tool_use") {
+              extractRecordStringValues(item, parts);
             }
             // web_search_tool_result: titles and urls
-            if (itemType === "web_search_tool_result" && isRecord(item.content)) {
+            if (includeToolResults && itemType === "web_search_tool_result" && isRecord(item.content)) {
               extractWebSearchResults(item.content, parts);
-            } else if (itemType === "web_search_tool_result" && Array.isArray(item.content)) {
+            } else if (includeToolResults && itemType === "web_search_tool_result" && Array.isArray(item.content)) {
               for (const result of item.content) {
                 if (isRecord(result)) {
                   if (hasStringProperty(result, "title")) parts.push(result.title as string);
@@ -69,7 +89,7 @@ const extractSearchableText = (message: ClaudeMessage): string => {
               }
             }
             // document: title, context
-            if (itemType === "document") {
+            if (includeStructured && itemType === "document") {
               if (hasStringProperty(item, "title")) parts.push(item.title as string);
               if (hasStringProperty(item, "context")) parts.push(item.context as string);
               // Also extract text content from PlainTextSource
@@ -79,7 +99,7 @@ const extractSearchableText = (message: ClaudeMessage): string => {
               }
             }
             // search_result: title, source, content texts
-            if (itemType === "search_result") {
+            if (includeStructured && itemType === "search_result") {
               if (hasStringProperty(item, "title")) parts.push(item.title as string);
               if (hasStringProperty(item, "source")) parts.push(item.source as string);
               if (Array.isArray(item.content)) {
@@ -91,16 +111,15 @@ const extractSearchableText = (message: ClaudeMessage): string => {
               }
             }
             // mcp_tool_use: server_name, tool_name
-            if (itemType === "mcp_tool_use") {
-              if (hasStringProperty(item, "server_name")) parts.push(item.server_name as string);
-              if (hasStringProperty(item, "tool_name")) parts.push(item.tool_name as string);
+            if (includeToolCalls && itemType === "mcp_tool_use") {
+              extractRecordStringValues(item, parts);
             }
             // mcp_tool_result: text content
-            if (itemType === "mcp_tool_result") {
+            if (includeToolResults && itemType === "mcp_tool_result") {
               extractMCPToolResultText(item.content, parts);
             }
             // web_fetch_tool_result: url, title
-            if (itemType === "web_fetch_tool_result" && isRecord(item.content)) {
+            if (includeToolResults && itemType === "web_fetch_tool_result" && isRecord(item.content)) {
               const content = item.content as Record<string, unknown>;
               if (hasStringProperty(content, "url")) parts.push(content.url as string);
               if (isRecord(content.content)) {
@@ -109,25 +128,25 @@ const extractSearchableText = (message: ClaudeMessage): string => {
               }
             }
             // code_execution_tool_result: stdout, stderr
-            if (itemType === "code_execution_tool_result" && isRecord(item.content)) {
+            if (includeToolResults && itemType === "code_execution_tool_result" && isRecord(item.content)) {
               const content = item.content as Record<string, unknown>;
               if (hasStringProperty(content, "stdout")) parts.push(content.stdout as string);
               if (hasStringProperty(content, "stderr")) parts.push(content.stderr as string);
             }
             // bash_code_execution_tool_result: stdout, stderr
-            if (itemType === "bash_code_execution_tool_result" && isRecord(item.content)) {
+            if (includeToolResults && itemType === "bash_code_execution_tool_result" && isRecord(item.content)) {
               const content = item.content as Record<string, unknown>;
               if (hasStringProperty(content, "stdout")) parts.push(content.stdout as string);
               if (hasStringProperty(content, "stderr")) parts.push(content.stderr as string);
             }
             // text_editor_code_execution_tool_result: path, content
-            if (itemType === "text_editor_code_execution_tool_result" && isRecord(item.content)) {
+            if (includeToolResults && itemType === "text_editor_code_execution_tool_result" && isRecord(item.content)) {
               const content = item.content as Record<string, unknown>;
               if (hasStringProperty(content, "path")) parts.push(content.path as string);
               if (hasStringProperty(content, "content")) parts.push(content.content as string);
             }
             // tool_search_tool_result: tool names, descriptions
-            if (itemType === "tool_search_tool_result" && Array.isArray(item.content)) {
+            if (includeToolResults && itemType === "tool_search_tool_result" && Array.isArray(item.content)) {
               for (const result of item.content) {
                 if (isRecord(result)) {
                   if (hasStringProperty(result, "tool_name")) parts.push(result.tool_name as string);
@@ -143,6 +162,7 @@ const extractSearchableText = (message: ClaudeMessage): string => {
 
     // toolUse name 추출
     if (
+      includeToolCalls &&
       message.type === "assistant" &&
       isRecord(message.toolUse) &&
       hasStringProperty(message.toolUse, "name")
@@ -153,6 +173,7 @@ const extractSearchableText = (message: ClaudeMessage): string => {
     // toolUseResult 추출 (큰 내용은 처음 부분만 인덱싱)
     const MAX_CONTENT_LENGTH = 5000; // 최대 5KB만 인덱싱
     if (
+      includeToolResults &&
       (message.type === "user" || message.type === "assistant") &&
       message.toolUseResult
     ) {
@@ -176,6 +197,21 @@ const extractSearchableText = (message: ClaudeMessage): string => {
   }
 
   return parts.join(" ");
+};
+
+// Helper: Extract all nested string values from small structured tool calls.
+const extractRecordStringValues = (value: unknown, parts: string[]): void => {
+  if (typeof value === "string") {
+    parts.push(value);
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      extractRecordStringValues(item, parts);
+    }
+  } else if (isRecord(value)) {
+    for (const nested of Object.values(value)) {
+      extractRecordStringValues(nested, parts);
+    }
+  }
 };
 
 // Helper: Extract text from web search results
@@ -268,16 +304,23 @@ const createFlexSearchIndex = (): FlexSearchDocumentIndex => {
   });
 };
 
+const createContentIndexes = (): Record<SearchScopeFilter, FlexSearchDocumentIndex> => {
+  return SEARCH_SCOPES.reduce((indexes, scope) => {
+    indexes[scope] = createFlexSearchIndex();
+    return indexes;
+  }, {} as Record<SearchScopeFilter, FlexSearchDocumentIndex>);
+};
+
 // 메시지 검색 인덱스 클래스
 class MessageSearchIndex {
-  private contentIndex: FlexSearchDocumentIndex;
+  private contentIndexes: Record<SearchScopeFilter, FlexSearchDocumentIndex>;
   private toolIdIndex: FlexSearchDocumentIndex;
   private messageMap: Map<string, number> = new Map(); // uuid -> messageIndex
   private messages: ClaudeMessage[] = []; // 메시지 원본 저장 (매치 위치 계산용)
   private isBuilt = false;
 
   constructor() {
-    this.contentIndex = createFlexSearchIndex();
+    this.contentIndexes = createContentIndexes();
     this.toolIdIndex = createFlexSearchIndex();
   }
 
@@ -305,14 +348,16 @@ class MessageSearchIndex {
         const message = messages[i];
         if (!message) continue;
 
-        // Content 인덱스
-        const text = extractSearchableText(message);
-        if (text.trim()) {
-          this.contentIndex.add({
-            uuid: message.uuid,
-            messageIndex: i,
-            text: text.toLowerCase(),
-          });
+        // Content indexes by search scope
+        for (const scope of SEARCH_SCOPES) {
+          const text = extractSearchableText(message, scope);
+          if (text.trim()) {
+            this.contentIndexes[scope].add({
+              uuid: message.uuid,
+              messageIndex: i,
+              text: text.toLowerCase(),
+            });
+          }
         }
 
         // Tool ID 인덱스
@@ -364,14 +409,15 @@ class MessageSearchIndex {
   // 검색 실행
   search(
     query: string,
-    filterType: SearchFilterType = "content"
+    filterType: SearchFilterType = "content",
+    searchScope: SearchScopeFilter = "text"
   ): Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }> {
     if (!this.isBuilt || !query.trim()) {
       return [];
     }
 
     const lowerQuery = query.toLowerCase();
-    const index = filterType === "toolId" ? this.toolIdIndex : this.contentIndex;
+    const index = filterType === "toolId" ? this.toolIdIndex : this.contentIndexes[searchScope];
 
     // FlexSearch 검색 (메시지 레벨)
     const results = index.search(lowerQuery, {
@@ -404,7 +450,7 @@ class MessageSearchIndex {
       const messageText =
         filterType === "toolId"
           ? extractToolIds(message)
-          : extractSearchableText(message);
+          : extractSearchableText(message, searchScope);
 
       // 메시지 내 모든 매치 개수 계산
       const matchCount = this.findAllMatchesInText(messageText, lowerQuery);
@@ -433,7 +479,7 @@ class MessageSearchIndex {
 
   // 인덱스 초기화
   clear(): void {
-    this.contentIndex = createFlexSearchIndex();
+    this.contentIndexes = createContentIndexes();
     this.toolIdIndex = createFlexSearchIndex();
     this.messageMap.clear();
     this.messages = [];
@@ -451,9 +497,10 @@ export const buildSearchIndex = (messages: ClaudeMessage[]): void => {
 
 export const searchMessages = (
   query: string,
-  filterType: SearchFilterType = "content"
+  filterType: SearchFilterType = "content",
+  searchScope: SearchScopeFilter = "text"
 ): Array<{ messageUuid: string; messageIndex: number; matchIndex: number; matchCount: number }> => {
-  return messageSearchIndex.search(query, filterType);
+  return messageSearchIndex.search(query, filterType, searchScope);
 };
 
 export const clearSearchIndex = (): void => {

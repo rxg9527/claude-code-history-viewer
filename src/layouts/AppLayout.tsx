@@ -40,6 +40,7 @@ import {
   type DateFilter,
   type ProjectStatsSummary,
   type AppError,
+  type SearchScopeFilter,
 } from "@/types";
 import type { UseAnalyticsReturn } from "@/types/analytics";
 import type { UseUpdaterReturn } from "@/hooks/useUpdater";
@@ -122,6 +123,7 @@ export interface AppLayoutProps {
   setDateFilter: (filter: { start: Date | null; end: Date | null }) => void;
   setSessionSearchQuery: (query: string) => void;
   setSearchFilterType: (type: SearchFilterType) => void;
+  setSessionSearchScope: (scope: SearchScopeFilter) => void;
   clearSessionSearch: () => void;
   goToNextMatch: () => void;
   goToPrevMatch: () => void;
@@ -193,6 +195,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     setDateFilter,
     setSessionSearchQuery,
     setSearchFilterType,
+    setSessionSearchScope,
     clearSessionSearch,
     goToNextMatch,
     goToPrevMatch,
@@ -568,6 +571,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       sessionSearch={sessionSearch}
                       onSearchChange={setSessionSearchQuery}
                       onFilterTypeChange={setSearchFilterType}
+                      onSearchScopeChange={setSessionSearchScope}
                       onClearSearch={clearSessionSearch}
                       onNextMatch={goToNextMatch}
                       onPrevMatch={goToPrevMatch}

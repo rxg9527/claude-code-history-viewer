@@ -85,7 +85,7 @@ fn search_named_string(
         .is_some_and(|value| matcher.is_match(value))
 }
 
-fn content_matches_scope(
+pub(crate) fn content_matches_scope(
     value: &serde_json::Value,
     matcher: &AhoCorasick,
     scope: SearchScope,
@@ -131,7 +131,7 @@ fn object_matches_scope(
     text_match || thinking_match || tool_call_match || tool_result_match
 }
 
-fn parse_search_scope(filters: &serde_json::Value) -> SearchScope {
+pub(crate) fn parse_search_scope(filters: &serde_json::Value) -> SearchScope {
     filters
         .get("searchScope")
         .and_then(serde_json::Value::as_str)
@@ -147,7 +147,7 @@ fn parse_search_scope(filters: &serde_json::Value) -> SearchScope {
 
 /// Build an aho-corasick matcher for case-insensitive single-pattern search.
 /// Uses ASCII case-insensitive mode (sufficient for most search queries).
-fn build_matcher(query: &str) -> AhoCorasick {
+pub(crate) fn build_matcher(query: &str) -> AhoCorasick {
     AhoCorasick::builder()
         .ascii_case_insensitive(true)
         .build([query])

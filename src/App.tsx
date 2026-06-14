@@ -51,6 +51,7 @@ function App() {
     clearProjectSelection,
     setSessionSearchQuery,
     setSearchFilterType,
+    setSessionSearchScope,
     goToNextMatch,
     goToPrevMatch,
     clearSessionSearch,
@@ -419,6 +420,7 @@ function App() {
       setDateFilter={setDateFilter}
       setSessionSearchQuery={setSessionSearchQuery}
       setSearchFilterType={setSearchFilterType}
+      setSessionSearchScope={setSessionSearchScope}
       clearSessionSearch={clearSessionSearch}
       goToNextMatch={goToNextMatch}
       goToPrevMatch={goToPrevMatch}

@@ -301,6 +301,7 @@ pub async fn search_all_providers(
     let search_filters =
         filters.unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::default()));
     crate::commands::session::validate_search_filters(&search_filters)?;
+    let search_scope = crate::commands::session::parse_search_scope(&search_filters);
 
     let providers_to_search = active_providers.unwrap_or_else(|| {
         vec![
@@ -377,7 +378,7 @@ pub async fn search_all_providers(
 
     // Codex
     if providers_to_search.iter().any(|p| p == "codex") {
-        match providers::codex::search(&query, max_results) {
+        match providers::codex::search(&query, max_results, search_scope) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Codex search failed: {e}");

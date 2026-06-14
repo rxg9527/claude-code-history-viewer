@@ -4,7 +4,7 @@
  * Shared type definitions for MessageViewer components.
  */
 
-import type { ClaudeMessage, ClaudeSession, ProgressData } from "../../types";
+import type { ClaudeMessage, ClaudeSession, ProgressData, SearchScopeFilter } from "../../types";
 import type { SearchState, SearchFilterType } from "../../store/useAppStore";
 import type { AgentTask } from "../toolResultRenderer";
 import type { TaskOperation, TaskInfo } from "./helpers/taskOperationHelpers";
@@ -20,6 +20,7 @@ export interface MessageViewerProps {
   sessionSearch: SearchState;
   onSearchChange: (query: string) => void;
   onFilterTypeChange: (filterType: SearchFilterType) => void;
+  onSearchScopeChange: (searchScope: SearchScopeFilter) => void;
   onClearSearch: () => void;
   onNextMatch?: () => void;
   onPrevMatch?: () => void;
