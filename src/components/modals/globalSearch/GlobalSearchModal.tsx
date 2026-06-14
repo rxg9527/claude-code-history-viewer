@@ -711,7 +711,7 @@ export const GlobalSearchModal = ({
                                 ([groupKey, group]) => (
                                     <div key={groupKey}>
                                         {/* Project Header */}
-                                        <div className="px-4 py-1.5 text-xs font-medium text-muted-foreground bg-muted sticky top-0 truncate flex items-center gap-2">
+                                        <div className="px-4 py-1.5 text-xs font-medium text-muted-foreground bg-muted sticky top-0 z-20 truncate flex items-center gap-2">
                                             {group.provider && group.provider !== "claude" && (
                                                 <Badge
                                                     size="sm"
@@ -730,7 +730,7 @@ export const GlobalSearchModal = ({
                                         {Array.from(group.sessions.entries()).map(
                                             ([sessionKey, sessionGroup]) => (
                                                 <div key={sessionKey}>
-                                                    <div className="px-4 py-1.5 bg-muted/45 border-t border-border/60 flex items-center gap-2">
+                                                    <div className="px-4 py-1.5 bg-muted/90 backdrop-blur sticky top-[28px] z-10 border-t border-border/60 flex items-center gap-2">
                                                         <MessageSquare className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                                                         <span className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">
                                                             {sessionGroup.label}
