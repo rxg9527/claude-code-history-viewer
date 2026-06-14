@@ -27,6 +27,7 @@ pub async fn scan_all_projects(
     custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
     wsl_enabled: Option<bool>,
     wsl_excluded_distros: Option<Vec<String>>,
+    codex_session_filters: Option<providers::codex::CodexSessionFilters>,
 ) -> Result<Vec<ClaudeProject>, String> {
     let providers_to_scan = active_providers.unwrap_or_else(|| {
         vec![
@@ -91,7 +92,7 @@ pub async fn scan_all_projects(
 
     // Codex
     if providers_to_scan.iter().any(|p| p == "codex") {
-        match providers::codex::scan_projects() {
+        match providers::codex::scan_projects_with_filters(codex_session_filters.as_ref()) {
             Ok(projects) => all_projects.extend(projects),
             Err(e) => {
                 log::warn!("Codex scan failed: {e}");
@@ -226,6 +227,7 @@ pub async fn load_provider_sessions(
     provider: String,
     project_path: String,
     exclude_sidechain: Option<bool>,
+    codex_session_filters: Option<providers::codex::CodexSessionFilters>,
 ) -> Result<Vec<ClaudeSession>, String> {
     let exclude = exclude_sidechain.unwrap_or(false);
 
@@ -241,7 +243,11 @@ pub async fn load_provider_sessions(
             }
             Ok(sessions)
         }
-        "codex" => providers::codex::load_sessions(&project_path, exclude),
+        "codex" => providers::codex::load_sessions_with_filters(
+            &project_path,
+            exclude,
+            codex_session_filters.as_ref(),
+        ),
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
         "opencode" => providers::opencode::load_sessions(&project_path, exclude),
@@ -297,6 +303,7 @@ pub async fn search_all_providers(
     custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
     wsl_enabled: Option<bool>,
     wsl_excluded_distros: Option<Vec<String>>,
+    codex_session_filters: Option<providers::codex::CodexSessionFilters>,
 ) -> Result<Vec<ClaudeMessage>, String> {
     let max_results = limit.unwrap_or(100);
     let offset = offset.unwrap_or(0);
@@ -383,7 +390,16 @@ pub async fn search_all_providers(
 
     // Codex
     if providers_to_search.iter().any(|p| p == "codex") {
-        match providers::codex::search(&query, provider_fetch_limit, search_scope) {
+        let search_result = match codex_session_filters.as_ref() {
+            Some(filters) => providers::codex::search_with_filters(
+                &query,
+                provider_fetch_limit,
+                search_scope,
+                Some(filters),
+            ),
+            None => providers::codex::search(&query, provider_fetch_limit, search_scope),
+        };
+        match search_result {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Codex search failed: {e}");

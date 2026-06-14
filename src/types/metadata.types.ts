@@ -51,6 +51,14 @@ export type SessionSortOrder = "newest" | "oldest";
  */
 export type SessionEntrypointFilter = "all" | "cli" | "vscode" | "desktop";
 
+/** Codex conversation filtering settings */
+export interface CodexSessionFilterSettings {
+  /** Master switch for Codex session category filters */
+  enabled: boolean;
+  /** Include permission/guardian approval conversations */
+  includePermissions: boolean;
+}
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */
@@ -61,6 +69,8 @@ export interface UserSettings {
   worktreeGroupingUserSet?: boolean;
   /** Project tree grouping mode: none, worktree, or directory */
   groupingMode?: GroupingMode;
+  /** Codex conversation filtering settings */
+  codexSessionFilters?: CodexSessionFilterSettings;
 }
 
 /** Root structure for all user metadata */

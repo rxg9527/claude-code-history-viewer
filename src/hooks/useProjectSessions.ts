@@ -10,6 +10,7 @@ import { api } from '@/services/api';
 import { useAppStore } from '@/store/useAppStore';
 import { toast } from 'sonner';
 import type { ClaudeProject, ClaudeSession } from '@/types';
+import { getCodexSessionFiltersParam } from '@/lib/codexSessionFilters';
 
 const isSubagentSession = (s: ClaudeSession) =>
   s.file_path.includes('/subagents/') || s.file_path.includes('\\subagents\\');
@@ -35,13 +36,15 @@ export function useProjectSessions() {
     setSessions([]);
     try {
       const provider = project.provider ?? 'claude';
-      const { excludeSidechain } = useAppStore.getState();
+      const { excludeSidechain, userMetadata } = useAppStore.getState();
+      const codexSessionFilters = getCodexSessionFiltersParam(userMetadata?.settings);
       const result =
         provider !== 'claude'
           ? await api<ClaudeSession[]>('load_provider_sessions', {
               provider,
               projectPath: project.path,
               excludeSidechain,
+              codexSessionFilters,
             })
           : await api<ClaudeSession[]>('load_project_sessions', {
               projectPath: project.path,

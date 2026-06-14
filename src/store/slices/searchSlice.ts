@@ -17,6 +17,7 @@ import {
   createEmptySearchState,
 } from "./types";
 import { hasNonDefaultProvider } from "../../utils/providers";
+import { getCodexSessionFiltersParam } from "../../lib/codexSessionFilters";
 
 // ============================================================================
 // State Interface
@@ -93,6 +94,7 @@ export const createSearchSlice: StateCreator<
       const customClaudePaths = get().userMetadata?.settings?.customClaudePaths;
       const hasCustomPaths = customClaudePaths != null && customClaudePaths.length > 0;
       const settings = get().userMetadata?.settings;
+      const codexSessionFilters = getCodexSessionFiltersParam(settings);
       const results = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeMessage[]>("search_all_providers", {
             claudePath,
@@ -102,6 +104,7 @@ export const createSearchSlice: StateCreator<
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
             wslEnabled: settings?.wsl?.enabled ?? false,
             wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
+            codexSessionFilters,
           })
         : await api<ClaudeMessage[]>("search_messages", {
             claudePath,

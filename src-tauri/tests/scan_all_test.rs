@@ -147,6 +147,7 @@ mod integration_tests {
             "antigravity".to_string(),
             project.path.clone(),
             Some(false),
+            None,
         )
         .await
         .expect("load_provider_sessions failed");
@@ -256,6 +257,7 @@ mod integration_tests {
             "antigravity".to_string(),
             project.path.clone(),
             Some(false),
+            None,
         )
         .await
         .expect("load_provider_sessions failed");

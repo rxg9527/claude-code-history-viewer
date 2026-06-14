@@ -20,6 +20,7 @@ import type { GroupingMode } from "../../types/metadata.types";
 import { DEFAULT_PROVIDER_ID } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
+import { getCodexSessionFiltersParam } from "../../lib/codexSessionFilters";
 
 // ============================================================================
 // State Interface
@@ -95,8 +96,10 @@ const isTauriAvailable = () => {
 
 const getProjectSessionsCacheKey = (
   project: ClaudeProject,
-  excludeSidechain: boolean
-) => `${project.provider ?? DEFAULT_PROVIDER_ID}::${project.path}::excludeSidechain:${excludeSidechain}`;
+  excludeSidechain: boolean,
+  codexSessionFiltersKey: string
+) =>
+  `${project.provider ?? DEFAULT_PROVIDER_ID}::${project.path}::excludeSidechain:${excludeSidechain}::codexSessionFilters:${codexSessionFiltersKey}`;
 
 const getProjectSignature = (project: ClaudeProject) =>
   `${project.session_count}:${project.message_count}:${project.last_modified}`;
@@ -254,6 +257,7 @@ export const createProjectSlice: StateCreator<
     try {
       const start = performance.now();
       const settings = get().userMetadata?.settings;
+      const codexSessionFilters = getCodexSessionFiltersParam(settings);
       const projects = (hasNonClaudeProviders || hasCustomPaths)
         ? await api<ClaudeProject[]>("scan_all_projects", {
             ...(claudePath && { claudePath }),
@@ -261,6 +265,7 @@ export const createProjectSlice: StateCreator<
             customClaudePaths: hasCustomPaths ? customClaudePaths : undefined,
             wslEnabled: settings?.wsl?.enabled ?? false,
             wslExcludedDistros: settings?.wsl?.excludedDistros ?? [],
+            codexSessionFilters,
           })
         : await api<ClaudeProject[]>("scan_projects", {
             claudePath,
@@ -315,7 +320,12 @@ export const createProjectSlice: StateCreator<
   selectProject: async (project: ClaudeProject, options?: SelectProjectOptions) => {
     const requestId = nextRequestId("selectProject");
     const excludeSidechain = get().excludeSidechain;
-    const cacheKey = getProjectSessionsCacheKey(project, excludeSidechain);
+    const codexSessionFilters = getCodexSessionFiltersParam(get().userMetadata?.settings);
+    const cacheKey = getProjectSessionsCacheKey(
+      project,
+      excludeSidechain,
+      JSON.stringify(codexSessionFilters)
+    );
     const signature = getProjectSignature(project);
     const cached = get().projectSessionsCache[cacheKey];
 
@@ -344,6 +354,7 @@ export const createProjectSlice: StateCreator<
             provider,
             projectPath: project.path,
             excludeSidechain,
+            codexSessionFilters,
           })
         : await api<ClaudeSession[]>("load_project_sessions", {
             projectPath: project.path,

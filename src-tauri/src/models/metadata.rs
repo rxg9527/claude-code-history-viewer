@@ -217,6 +217,31 @@ pub struct WslSettings {
     pub excluded_distros: Vec<String>,
 }
 
+/// Codex conversation filtering settings
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionFilterSettings {
+    /// Master switch for Codex session category filters
+    #[serde(default = "default_codex_session_filter_enabled")]
+    pub enabled: bool,
+    /// Include permission/guardian approval conversations
+    #[serde(default)]
+    pub include_permissions: bool,
+}
+
+impl Default for CodexSessionFilterSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            include_permissions: false,
+        }
+    }
+}
+
+fn default_codex_session_filter_enabled() -> bool {
+    true
+}
+
 /// Global user settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -244,6 +269,10 @@ pub struct UserSettings {
     /// WSL integration settings (Windows only)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wsl: Option<WslSettings>,
+
+    /// Codex conversation filtering settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codex_session_filters: Option<CodexSessionFilterSettings>,
 }
 
 #[cfg(test)]

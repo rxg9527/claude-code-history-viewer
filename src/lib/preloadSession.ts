@@ -22,6 +22,7 @@ import { api } from "@/services/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import type { ClaudeProject, ClaudeSession } from "@/types";
+import { getCodexSessionFiltersParam } from "@/lib/codexSessionFilters";
 
 export type SessionHintKind = "uuid" | "path" | "folder" | "title";
 
@@ -146,10 +147,13 @@ async function loadSessionsFor(
   excludeSidechain: boolean,
 ): Promise<ClaudeSession[]> {
   const providerId = project.provider ?? "claude";
+  const codexSessionFilters = getCodexSessionFiltersParam(
+    useAppStore.getState().userMetadata?.settings
+  );
   return api<ClaudeSession[]>(
     providerId !== "claude" ? "load_provider_sessions" : "load_project_sessions",
     providerId !== "claude"
-      ? { provider: providerId, projectPath: project.path, excludeSidechain }
+      ? { provider: providerId, projectPath: project.path, excludeSidechain, codexSessionFilters }
       : { projectPath: project.path, excludeSidechain },
   );
 }

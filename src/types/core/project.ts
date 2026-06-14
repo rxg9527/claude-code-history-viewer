@@ -72,6 +72,14 @@ export interface WslSettings {
   excludedDistros: string[];
 }
 
+/** Codex conversation filtering settings */
+export interface CodexSessionFilterSettings {
+  /** Master switch for Codex session category filters */
+  enabled: boolean;
+  /** Include permission/guardian approval conversations */
+  includePermissions: boolean;
+}
+
 /** Global user settings */
 export interface UserSettings {
   /** Glob patterns for projects to hide (e.g., "folders-dg-*") */
@@ -86,6 +94,8 @@ export interface UserSettings {
   customClaudePaths?: CustomClaudePath[];
   /** WSL integration settings (Windows only) */
   wsl?: WslSettings;
+  /** Codex conversation filtering settings */
+  codexSessionFilters?: CodexSessionFilterSettings;
 }
 
 // ============================================================================

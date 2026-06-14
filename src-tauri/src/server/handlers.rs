@@ -302,6 +302,8 @@ pub struct ScanAllProjectsParams {
     pub wsl_enabled: Option<bool>,
     #[serde(default)]
     pub wsl_excluded_distros: Option<Vec<String>>,
+    #[serde(default)]
+    pub codex_session_filters: Option<crate::providers::codex::CodexSessionFilters>,
 }
 
 #[derive(Deserialize)]
@@ -311,6 +313,8 @@ pub struct ProviderSessionsParams {
     pub project_path: String,
     #[serde(default)]
     pub exclude_sidechain: Option<bool>,
+    #[serde(default)]
+    pub codex_session_filters: Option<crate::providers::codex::CodexSessionFilters>,
 }
 
 #[derive(Deserialize)]
@@ -340,6 +344,8 @@ pub struct SearchAllProvidersParams {
     pub wsl_enabled: Option<bool>,
     #[serde(default)]
     pub wsl_excluded_distros: Option<Vec<String>>,
+    #[serde(default)]
+    pub codex_session_filters: Option<crate::providers::codex::CodexSessionFilters>,
 }
 
 #[derive(Deserialize)]
@@ -782,6 +788,7 @@ handler_json!(
             p.custom_claude_paths,
             p.wsl_enabled,
             p.wsl_excluded_distros,
+            p.codex_session_filters,
         )
         .await
     }
@@ -795,6 +802,7 @@ handler_json!(
             p.provider,
             p.project_path,
             p.exclude_sidechain,
+            p.codex_session_filters,
         )
         .await
     }
@@ -822,6 +830,7 @@ handler_json!(
             p.custom_claude_paths,
             p.wsl_enabled,
             p.wsl_excluded_distros,
+            p.codex_session_filters,
         )
         .await
     }

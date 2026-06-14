@@ -4,9 +4,11 @@ use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{build_provider_message, find_line_ranges, parse_rfc3339_utc};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -15,6 +17,20 @@ use walkdir::WalkDir;
 
 const VSCODE_CONTEXT_PREFIX: &str = "# Context from my IDE setup:";
 const CODEX_REQUEST_MARKER: &str = "my request for codex";
+const CODEX_PERMISSION_GUARDIAN_NAME: &str = "guardian";
+const CODEX_PERMISSION_INSTRUCTIONS_MARKER: &str =
+    "You are judging one planned coding-agent action";
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexSessionFilters {
+    /// Master switch. When false or absent, Codex sessions are left untouched.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Whether permissions/guardian approval conversations should be included.
+    #[serde(default)]
+    pub include_permissions: bool,
+}
 
 lazy_static::lazy_static! {
     static ref SESSION_INDEX_CACHE: Mutex<Option<CodexSessionIndex>> = Mutex::new(None);
@@ -231,6 +247,134 @@ fn store_session_index(index: CodexSessionIndex) {
     }
 }
 
+fn should_apply_codex_filters(filters: Option<&CodexSessionFilters>) -> bool {
+    filters.map(|f| f.enabled).unwrap_or(false)
+}
+
+fn should_hide_permissions_sessions(filters: Option<&CodexSessionFilters>) -> bool {
+    filters
+        .map(|f| f.enabled && !f.include_permissions)
+        .unwrap_or(false)
+}
+
+fn codex_session_allowed(session: &ClaudeSession, filters: Option<&CodexSessionFilters>) -> bool {
+    if !should_hide_permissions_sessions(filters) {
+        return true;
+    }
+    !is_permissions_approval_session_path(Path::new(&session.file_path))
+}
+
+fn filter_codex_sessions(
+    sessions: Vec<ClaudeSession>,
+    filters: Option<&CodexSessionFilters>,
+) -> Vec<ClaudeSession> {
+    if !should_apply_codex_filters(filters) {
+        return sessions;
+    }
+    sessions
+        .into_iter()
+        .filter(|session| codex_session_allowed(session, filters))
+        .collect()
+}
+
+fn projects_from_sessions_by_cwd(
+    sessions_by_cwd: &HashMap<String, Vec<ClaudeSession>>,
+) -> Vec<ClaudeProject> {
+    let mut projects: Vec<ClaudeProject> = sessions_by_cwd
+        .iter()
+        .filter_map(|(cwd, sessions)| {
+            if sessions.is_empty() {
+                return None;
+            }
+
+            let name = project_name_from_cwd(cwd);
+            let session_count = sessions.len();
+            let message_count: usize = sessions.iter().map(|s| s.message_count).sum();
+            let last_modified = sessions
+                .iter()
+                .map(|s| s.last_modified.as_str())
+                .max()
+                .unwrap_or("")
+                .to_string();
+
+            Some(ClaudeProject {
+                name,
+                path: format!("codex://{cwd}"),
+                actual_path: cwd.clone(),
+                session_count,
+                message_count,
+                last_modified,
+                git_info: None,
+                provider: Some("codex".to_string()),
+                storage_type: None,
+                custom_directory_label: None,
+            })
+        })
+        .collect();
+
+    projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    projects
+}
+
+fn filter_codex_projects(
+    index: &CodexSessionIndex,
+    filters: Option<&CodexSessionFilters>,
+) -> Vec<ClaudeProject> {
+    if !should_apply_codex_filters(filters) {
+        return index.projects.clone();
+    }
+
+    let sessions_by_cwd: HashMap<String, Vec<ClaudeSession>> = index
+        .sessions_by_cwd
+        .iter()
+        .filter_map(|(cwd, sessions)| {
+            let filtered = filter_codex_sessions(sessions.clone(), filters);
+            if filtered.is_empty() {
+                None
+            } else {
+                Some((cwd.clone(), filtered))
+            }
+        })
+        .collect();
+
+    projects_from_sessions_by_cwd(&sessions_by_cwd)
+}
+
+fn is_permissions_approval_session_path(path: &Path) -> bool {
+    let Ok(file) = File::open(path) else {
+        return false;
+    };
+    let reader = BufReader::new(file);
+
+    for line in reader.lines().map_while(Result::ok).take(20) {
+        let Ok(value) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        if value.get("type").and_then(Value::as_str) != Some("session_meta") {
+            continue;
+        }
+
+        let Some(payload) = value.get("payload") else {
+            return false;
+        };
+
+        let is_guardian_subagent = payload
+            .pointer("/source/subagent/other")
+            .and_then(Value::as_str)
+            .map(|name| name == CODEX_PERMISSION_GUARDIAN_NAME)
+            .unwrap_or(false);
+        let has_permission_instructions = payload
+            .pointer("/base_instructions/text")
+            .and_then(Value::as_str)
+            .map(|text| text.contains(CODEX_PERMISSION_INSTRUCTIONS_MARKER))
+            .unwrap_or(false);
+
+        return is_guardian_subagent || has_permission_instructions;
+    }
+
+    false
+}
+
 fn load_thread_titles_from_base_path(
     base_path: &str,
 ) -> Result<HashMap<String, CodexThreadTitle>, String> {
@@ -326,36 +470,7 @@ fn build_session_index(base_path: &str) -> Result<CodexSessionIndex, String> {
         sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     }
 
-    let mut projects: Vec<ClaudeProject> = sessions_by_cwd
-        .iter()
-        .map(|(cwd, sessions)| {
-            let name = project_name_from_cwd(cwd);
-
-            let session_count = sessions.len();
-            let message_count: usize = sessions.iter().map(|s| s.message_count).sum();
-            let last_modified = sessions
-                .iter()
-                .map(|s| s.last_modified.as_str())
-                .max()
-                .unwrap_or("")
-                .to_string();
-
-            ClaudeProject {
-                name,
-                path: format!("codex://{cwd}"),
-                actual_path: cwd.clone(),
-                session_count,
-                message_count,
-                last_modified,
-                git_info: None,
-                provider: Some("codex".to_string()),
-                storage_type: None,
-                custom_directory_label: None,
-            }
-        })
-        .collect();
-
-    projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    let projects = projects_from_sessions_by_cwd(&sessions_by_cwd);
 
     Ok(CodexSessionIndex {
         base_path: base_path.to_string(),
@@ -367,22 +482,43 @@ fn build_session_index(base_path: &str) -> Result<CodexSessionIndex, String> {
 
 /// Scan Codex projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_with_filters(base_path, None)
+}
+
+pub fn scan_projects_from_path_with_filters(
+    base_path: &str,
+    filters: Option<&CodexSessionFilters>,
+) -> Result<Vec<ClaudeProject>, String> {
     let index = build_session_index(base_path)?;
-    let projects = index.projects.clone();
+    let projects = filter_codex_projects(&index, filters);
     store_session_index(index);
     Ok(projects)
 }
 
 /// Scan Codex projects from the default location.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_with_filters(None)
+}
+
+pub fn scan_projects_with_filters(
+    filters: Option<&CodexSessionFilters>,
+) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Codex base path not found")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_path_with_filters(&base, filters)
 }
 
 /// Load sessions for a Codex project (filtered by cwd)
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_with_filters(project_path, _exclude_sidechain, None)
+}
+
+pub fn load_sessions_with_filters(
+    project_path: &str,
+    _exclude_sidechain: bool,
+    filters: Option<&CodexSessionFilters>,
 ) -> Result<Vec<ClaudeSession>, String> {
     let base_path = get_base_path().ok_or_else(|| "Codex base path not found".to_string())?;
 
@@ -392,11 +528,12 @@ pub fn load_sessions(
         .unwrap_or(project_path);
 
     if let Some(index) = get_cached_session_index(&base_path) {
-        return Ok(index
+        let sessions = index
             .sessions_by_cwd
             .get(target_cwd)
             .cloned()
-            .unwrap_or_default());
+            .unwrap_or_default();
+        return Ok(filter_codex_sessions(sessions, filters));
     }
 
     let index = build_session_index(&base_path)?;
@@ -406,7 +543,7 @@ pub fn load_sessions(
         .cloned()
         .unwrap_or_default();
     store_session_index(index);
-    Ok(sessions)
+    Ok(filter_codex_sessions(sessions, filters))
 }
 
 /// Load all messages from a Codex rollout file
@@ -571,6 +708,15 @@ pub(crate) fn search(
     limit: usize,
     search_scope: SearchScope,
 ) -> Result<Vec<ClaudeMessage>, String> {
+    search_with_filters(query, limit, search_scope, None)
+}
+
+pub(crate) fn search_with_filters(
+    query: &str,
+    limit: usize,
+    search_scope: SearchScope,
+    filters: Option<&CodexSessionFilters>,
+) -> Result<Vec<ClaudeMessage>, String> {
     let session_dirs = get_existing_session_dirs()?;
 
     if session_dirs.is_empty() {
@@ -589,6 +735,11 @@ pub(crate) fn search(
             .filter(|e| is_rollout_jsonl(e.path()))
         {
             let rollout_path = entry.path();
+            if should_hide_permissions_sessions(filters)
+                && is_permissions_approval_session_path(rollout_path)
+            {
+                continue;
+            }
 
             if let Ok(messages) = load_messages(&rollout_path.to_string_lossy()) {
                 for msg in messages {
@@ -2620,6 +2771,111 @@ mod tests {
         assert!(sessions
             .iter()
             .any(|s| s.file_path.contains("/archived_sessions/")));
+        invalidate_session_index_cache();
+    }
+
+    #[test]
+    #[serial]
+    fn codex_session_filters_hide_permission_guardian_sessions() {
+        invalidate_session_index_cache();
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home
+            .join("sessions")
+            .join("2026")
+            .join("06")
+            .join("13");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+
+        let project_cwd = "/Users/jack/client/filter-project";
+        let normal_rollout = sessions_dir.join("rollout-normal.jsonl");
+        let permissions_rollout = sessions_dir.join("rollout-permissions.jsonl");
+        let normal_lines = [
+            json!({
+                "type": "session_meta",
+                "payload": { "id": "normal-session", "cwd": project_cwd }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-06-13T10:00:00Z",
+                    "content": [{ "type": "input_text", "text": "normal prompt" }]
+                }
+            }),
+        ];
+        let permissions_lines = [
+            json!({
+                "type": "session_meta",
+                "payload": {
+                    "id": "permissions-session",
+                    "cwd": project_cwd,
+                    "source": { "subagent": { "other": "guardian" } },
+                    "base_instructions": {
+                        "text": "You are judging one planned coding-agent action."
+                    }
+                }
+            }),
+            json!({
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "created_at": "2026-06-13T11:00:00Z",
+                    "content": [{ "type": "input_text", "text": "permissions instructions" }]
+                }
+            }),
+        ];
+        fs::write(
+            &normal_rollout,
+            normal_lines
+                .iter()
+                .map(Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n",
+        )
+        .expect("normal fixture should be written");
+        fs::write(
+            &permissions_rollout,
+            permissions_lines
+                .iter()
+                .map(Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n",
+        )
+        .expect("permissions fixture should be written");
+
+        let filters = CodexSessionFilters {
+            enabled: true,
+            include_permissions: false,
+        };
+        let projects =
+            scan_projects_from_path_with_filters(&codex_home.to_string_lossy(), Some(&filters))
+                .expect("projects should be scanned");
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].session_count, 1);
+
+        let sessions =
+            load_sessions_with_filters(&format!("codex://{project_cwd}"), false, Some(&filters))
+                .expect("sessions should be loaded");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].actual_session_id, "normal-session");
+
+        let visible_filters = CodexSessionFilters {
+            enabled: true,
+            include_permissions: true,
+        };
+        let visible_sessions = load_sessions_with_filters(
+            &format!("codex://{project_cwd}"),
+            false,
+            Some(&visible_filters),
+        )
+        .expect("sessions should be loaded");
+        assert_eq!(visible_sessions.len(), 2);
         invalidate_session_index_cache();
     }
 

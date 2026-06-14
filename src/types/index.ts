@@ -113,6 +113,7 @@ export type {
   CustomClaudePath,
   WslDistro,
   WslSettings,
+  CodexSessionFilterSettings,
   SessionMetadata,
   ProjectMetadata,
   GroupingMode,

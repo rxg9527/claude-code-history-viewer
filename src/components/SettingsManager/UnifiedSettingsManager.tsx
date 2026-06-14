@@ -29,6 +29,7 @@ import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
+import { CodexSessionFiltersSection } from "./sections/CodexSessionFiltersSection";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -112,6 +113,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
   const [isCustomDirsExpanded, setIsCustomDirsExpanded] = React.useState(false);
+  const [isCodexFiltersExpanded, setIsCodexFiltersExpanded] = React.useState(false);
   const [isWslExpanded, setIsWslExpanded] = React.useState(false);
 
   // Pending changes state (shared across components for dirty tracking)
@@ -315,6 +317,14 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <CustomDirectoriesSection
                 isExpanded={isCustomDirsExpanded}
                 onToggle={(open) => setIsCustomDirsExpanded(open)}
+              />
+            </Card>
+
+            {/* Codex Session Filters — app-level setting, independent of Claude Code scope */}
+            <Card className="shrink-0">
+              <CodexSessionFiltersSection
+                isExpanded={isCodexFiltersExpanded}
+                onToggle={(open) => setIsCodexFiltersExpanded(open)}
               />
             </Card>
 

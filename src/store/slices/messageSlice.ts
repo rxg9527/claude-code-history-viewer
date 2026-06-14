@@ -33,6 +33,7 @@ import {
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
 import { supportsConversationBreakdown } from "../../utils/providers";
+import { getCodexSessionFiltersParam } from "../../lib/codexSessionFilters";
 import { normalizeDateFilterOptions } from "../../utils/date";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 
@@ -301,11 +302,13 @@ export const createMessageSlice: StateCreator<
       // Refresh project sessions list
       if (selectedProject) {
         const provider = selectedProject.provider ?? "claude";
+        const codexSessionFilters = getCodexSessionFiltersParam(get().userMetadata?.settings);
         const sessions = provider !== "claude"
           ? await api<ClaudeSession[]>("load_provider_sessions", {
               provider,
               projectPath: selectedProject.path,
               excludeSidechain: get().excludeSidechain,
+              codexSessionFilters,
             })
           : await api<ClaudeSession[]>("load_project_sessions", {
               projectPath: selectedProject.path,

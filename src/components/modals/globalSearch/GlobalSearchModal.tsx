@@ -22,6 +22,7 @@ import type { ClaudeMessage, ClaudeSession, ContentItem, SearchScopeFilter } fro
 import { getProviderLabel, hasNonDefaultProvider, getProviderBadgeStyle } from "@/utils/providers";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getCodexSessionFiltersParam } from "@/lib/codexSessionFilters";
 
 type GlobalSearchResult = ClaudeMessage;
 
@@ -70,7 +71,7 @@ export const GlobalSearchModal = ({
     const resultsContainerRef = useRef<HTMLDivElement>(null);
     const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage } =
+    const { claudePath, projects, selectProject, selectSession, sessions, getSessionDisplayName, activeProviders, navigateToMessage, clearTargetMessage, userMetadata } =
         useAppStore();
     const [selectedProjectPath, setSelectedProjectPath] = useState<string>("all");
 
@@ -186,10 +187,11 @@ export const GlobalSearchModal = ({
                 }
                 filters.searchScope = searchScope;
                 const hasNonClaudeProviders = hasNonDefaultProvider(activeProviders);
+                const codexSessionFilters = getCodexSessionFiltersParam(userMetadata?.settings);
                 const searchResults = await api<GlobalSearchResult[]>(
                     hasNonClaudeProviders ? "search_all_providers" : "search_messages",
                     hasNonClaudeProviders
-                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: SEARCH_REQUEST_LIMIT, offset }
+                        ? { claudePath, query: trimmedQuery, activeProviders, filters, limit: SEARCH_REQUEST_LIMIT, offset, codexSessionFilters }
                         : { claudePath, query: trimmedQuery, filters, limit: SEARCH_REQUEST_LIMIT, offset },
                 );
                 const visibleResults = searchResults.slice(0, SEARCH_PAGE_SIZE);
@@ -215,7 +217,7 @@ export const GlobalSearchModal = ({
                 }
             }
         },
-        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, searchScope, t],
+        [claudePath, activeProviders, selectedProjectPath, messageTypeFilter, searchScope, userMetadata?.settings, t],
     );
 
     const handleLoadMore = useCallback(() => {
@@ -271,14 +273,15 @@ export const GlobalSearchModal = ({
                 // across the scan and avoid repeated getState() calls. The
                 // setting is user-configurable; taking a snapshot is intentional
                 // so a mid-scan toggle does not change half the requests.
-                const { excludeSidechain } = useAppStore.getState();
+                const { excludeSidechain, userMetadata } = useAppStore.getState();
+                const codexSessionFilters = getCodexSessionFiltersParam(userMetadata?.settings);
                 for (const project of projects) {
                     try {
                         const projectProvider = project.provider ?? "claude";
                         const projectSessions = await api<ClaudeSession[]>(
                             projectProvider !== "claude" ? "load_provider_sessions" : "load_project_sessions",
                             projectProvider !== "claude"
-                                ? { provider: projectProvider, projectPath: project.path, excludeSidechain }
+                                ? { provider: projectProvider, projectPath: project.path, excludeSidechain, codexSessionFilters }
                                 : { projectPath: project.path, excludeSidechain },
                         );
 
