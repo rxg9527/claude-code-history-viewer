@@ -76,6 +76,13 @@ fn is_rollout_jsonl(path: &Path) -> bool {
         && path.extension().is_some_and(|ext| ext == "jsonl")
 }
 
+fn project_name_from_cwd(cwd: &str) -> String {
+    Path::new(cwd)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| cwd.to_string())
+}
+
 fn validate_session_path(session_path: &Path, raw_session_path: &str) -> Result<PathBuf, String> {
     let canonical_session = session_path
         .canonicalize()
@@ -168,10 +175,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     let mut projects: Vec<ClaudeProject> = project_map
         .into_iter()
         .map(|(cwd, sessions)| {
-            let name = Path::new(&cwd)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| cwd.clone());
+            let name = project_name_from_cwd(&cwd);
 
             let session_count = sessions.len();
             let message_count: usize = sessions.iter().map(|s| s.message_count).sum();
@@ -245,10 +249,7 @@ pub fn load_sessions(
                     session_id: info.file_path.clone(),
                     actual_session_id: info.session_id,
                     file_path: info.file_path,
-                    project_name: Path::new(target_cwd)
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_default(),
+                    project_name: project_name_from_cwd(target_cwd),
                     message_count: info.message_count,
                     first_message_time: info.first_message_time,
                     last_message_time: info.last_message_time,
@@ -285,6 +286,7 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 
     let mut messages = Vec::new();
     let mut session_id = String::new();
+    let mut project_name: Option<String> = None;
     let mut current_model: Option<String> = None;
     let mut prev_input_tokens: u32 = 0;
     let mut prev_output_tokens: u32 = 0;
@@ -314,6 +316,10 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown")
                         .to_string();
+                    project_name = payload
+                        .get("cwd")
+                        .and_then(|v| v.as_str())
+                        .map(project_name_from_cwd);
                 }
             }
             "turn_context" => {
@@ -408,6 +414,12 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
                 }
             }
             _ => {}
+        }
+    }
+
+    if let Some(project_name) = project_name {
+        for message in &mut messages {
+            message.project_name = Some(project_name.clone());
         }
     }
 
@@ -2088,6 +2100,58 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].uuid, "text-output");
+    }
+
+    #[test]
+    #[serial]
+    fn load_messages_sets_project_name_from_cwd() {
+        let tmp = TempDir::new().expect("temp dir should be created");
+        let codex_home = tmp.path().join("codex-home");
+        let sessions_dir = codex_home.join("sessions");
+        fs::create_dir_all(&sessions_dir).expect("sessions dir should be created");
+        let _guard = EnvVarGuard::set("CODEX_HOME", &codex_home);
+        let rollout_path = sessions_dir.join("rollout-project-name.jsonl");
+
+        let lines = [
+            json!({
+                "timestamp": "2026-03-01T10:00:00Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": "sess-project-name",
+                    "cwd": "/Users/Ruan/work/claude-code-history-viewer"
+                }
+            }),
+            json!({
+                "timestamp": "2026-03-01T10:00:01Z",
+                "type": "response_item",
+                "payload": {
+                    "id": "message-1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{ "type": "output_text", "text": "hello" }]
+                }
+            }),
+        ];
+
+        let content = lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&rollout_path, format!("{content}\n")).expect("fixture should be written");
+
+        let messages = load_messages(
+            rollout_path
+                .to_str()
+                .expect("rollout path should be valid UTF-8"),
+        )
+        .expect("rollout should be parsed");
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(
+            messages[0].project_name.as_deref(),
+            Some("claude-code-history-viewer")
+        );
     }
 
     #[test]
