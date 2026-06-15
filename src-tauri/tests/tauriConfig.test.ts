@@ -249,7 +249,7 @@ describe('Tauri Configuration Tests', () => {
         config.plugins.updater.endpoints.forEach((endpoint: string) => {
           expect(endpoint).toMatch(/^https:\/\//); // HTTPS required
           expect(endpoint).toContain('github.com');
-          expect(endpoint).toContain('jhlee0409/claude-code-history-viewer');
+          expect(endpoint).toContain('rxg9527/claude-code-history-viewer');
           expect(endpoint).toContain('latest.json');
         });
       });

@@ -62,7 +62,7 @@ brew install jhlee0409/tap/cchv-server
 cchv-server --serve
 
 # 또는 소스에서 빌드
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 just setup
 just serve-build-run
@@ -142,7 +142,7 @@ ssh root@203.0.113.50
 brew install jhlee0409/tap/cchv-server
 
 # 방법 B: 설치 스크립트
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
 두 방법 모두 OS/아키텍처를 자동 감지해서 `cchv-server`를 PATH에 설치합니다.
@@ -195,7 +195,7 @@ SSH를 닫으면 서버도 꺼집니다. 항상 켜두려면:
 
 ```bash
 # 서비스 파일 다운로드
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/contrib/cchv.service | sudo tee /etc/systemd/system/cchv.service > /dev/null
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/contrib/cchv.service | sudo tee /etc/systemd/system/cchv.service > /dev/null
 
 # 편집 — YOUR_USERNAME_HERE를 본인 계정으로 변경
 sudo systemctl edit --full cchv.service
@@ -248,7 +248,7 @@ ssh root@203.0.113.50
 **2. 클론 및 시작**
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 docker compose up -d
 ```
@@ -289,7 +289,7 @@ command: ["--port", "3727", "--token", "내-고정-토큰"]
 ### 빌드
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 just setup
 just serve-build

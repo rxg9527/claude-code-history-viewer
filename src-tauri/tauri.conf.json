@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Claude Code History Viewer",
-  "version": "1.13.0",
+  "version": "1.13.1",
   "identifier": "com.claude.history-viewer",
   "build": {
     "frontendDist": "../dist",
@@ -43,10 +43,10 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/jhlee0409/claude-code-history-viewer/releases/latest/download/latest.json"
+        "https://github.com/rxg9527/claude-code-history-viewer/releases/latest/download/latest.json"
       ],
       "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg0RUExOEVGNTlEQzFDRDMKUldUVEhOeFo3eGpxaEZGYkZYcmFKTERPdys5dXh2c1Z5ZU1uTDREZ3RyWDF1bHhSc1JOeW05MzUK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM0M0VFM0ZDOTUwMEJFQUIKUldTcnZnQ1YvT00rTk80eUw1MUY2Y0hmZlErekNRN20waGFyLzJkQjlsSGw4Wm9hdmRmT2dFS1QK"
     }
   },
   "bundle": {

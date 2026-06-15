@@ -571,9 +571,9 @@ pub fn scan_projects_with_filters(
 /// Load sessions for a Codex project (filtered by cwd)
 pub fn load_sessions(
     project_path: &str,
-    _exclude_sidechain: bool,
+    exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    load_sessions_with_filters(project_path, _exclude_sidechain, None)
+    load_sessions_with_filters(project_path, exclude_sidechain, None)
 }
 
 pub fn load_sessions_with_filters(

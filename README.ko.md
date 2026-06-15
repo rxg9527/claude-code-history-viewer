@@ -8,14 +8,14 @@
 
 **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/rxg9527/claude-code-history-viewer?label=Version&color=blue)](https://github.com/rxg9527/claude-code-history-viewer/releases)
+[![Stars](https://img.shields.io/github/stars/rxg9527/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/rxg9527/claude-code-history-viewer/stargazers)
+[![License](https://img.shields.io/github/license/rxg9527/claude-code-history-viewer)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/rxg9527/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/rxg9527/claude-code-history-viewer/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/rxg9527/claude-code-history-viewer)](https://github.com/rxg9527/claude-code-history-viewer/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[웹사이트](https://jhlee0409.github.io/claude-code-history-viewer/) · [다운로드](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [버그 제보](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[웹사이트](https://jhlee0409.github.io/claude-code-history-viewer/) · [다운로드](https://github.com/rxg9527/claude-code-history-viewer/releases) · [버그 제보](https://github.com/rxg9527/claude-code-history-viewer/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -38,9 +38,9 @@
 
 | 플랫폼 | 다운로드 |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (포터블)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| macOS (Universal) | [`.dmg`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (포터블)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
 **Homebrew** (macOS):
 
@@ -199,7 +199,7 @@ brew uninstall --cask claude-code-history-viewer
 ## 소스에서 빌드
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 
 # 방법 1: just 사용 (권장)
@@ -229,7 +229,7 @@ pnpm tauri:build     # 프로덕션 빌드
 brew install jhlee0409/tap/cchv-server
 
 # 또는 원라인 스크립트
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
 ### 서버 시작
@@ -258,7 +258,7 @@ cchv-server --serve
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)에서 다운로드하세요.
+[Releases](https://github.com/rxg9527/claude-code-history-viewer/releases)에서 다운로드하세요.
 
 **CLI 옵션:**
 
@@ -389,7 +389,7 @@ claude-code-history-viewer --session=1265cd74
 |---------|----------|
 | "Claude 데이터를 찾을 수 없음" | `~/.claude` 폴더가 존재하고 대화 기록이 있는지 확인 |
 | 성능 문제 | 대용량 대화 기록은 초기 로딩이 느릴 수 있음 — 앱은 가상 스크롤링 사용 |
-| 업데이트 오류 | 자동 업데이트 실패 시 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)에서 수동 다운로드 |
+| 업데이트 오류 | 자동 업데이트 실패 시 [Releases](https://github.com/rxg9527/claude-code-history-viewer/releases)에서 수동 다운로드 |
 
 ## 기여하기
 
@@ -419,6 +419,6 @@ claude-code-history-viewer --session=1265cd74
 
 이 프로젝트가 도움이 되었다면 스타를 고려해주세요!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.com/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=rxg9527/claude-code-history-viewer&type=Date)](https://star-history.com/#rxg9527/claude-code-history-viewer&Date)
 
 </div>

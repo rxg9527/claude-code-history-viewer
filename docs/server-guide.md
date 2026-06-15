@@ -62,7 +62,7 @@ brew install jhlee0409/tap/cchv-server
 cchv-server --serve
 
 # Or build from source
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 just setup
 just serve-build-run
@@ -142,7 +142,7 @@ ssh root@203.0.113.50
 brew install jhlee0409/tap/cchv-server
 
 # Option B: One-line install script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
 Both methods auto-detect your OS/architecture and install `cchv-server` to your PATH.
@@ -196,7 +196,7 @@ The server stops when you close SSH. To keep it running permanently:
 ```bash
 # Copy the service file
 sudo cp /usr/local/bin/cchv.service /etc/systemd/system/ 2>/dev/null || \
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/contrib/cchv.service | sudo tee /etc/systemd/system/cchv.service > /dev/null
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/contrib/cchv.service | sudo tee /etc/systemd/system/cchv.service > /dev/null
 
 # Edit — change YOUR_USERNAME_HERE to your actual username
 sudo systemctl edit --full cchv.service
@@ -249,7 +249,7 @@ ssh root@203.0.113.50
 **2. Clone and start**
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 docker compose up -d
 ```
@@ -295,7 +295,7 @@ For contributors, fork maintainers, or custom builds.
 ### Steps
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 
 # Install dependencies

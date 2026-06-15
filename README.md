@@ -8,14 +8,14 @@
 
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, and **ForgeCode** — as a desktop app or headless server. 100% offline.
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/rxg9527/claude-code-history-viewer?label=Version&color=blue)](https://github.com/rxg9527/claude-code-history-viewer/releases)
+[![Stars](https://img.shields.io/github/stars/rxg9527/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/rxg9527/claude-code-history-viewer/stargazers)
+[![License](https://img.shields.io/github/license/rxg9527/claude-code-history-viewer)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/rxg9527/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/rxg9527/claude-code-history-viewer/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/rxg9527/claude-code-history-viewer)](https://github.com/rxg9527/claude-code-history-viewer/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[Website](https://jhlee0409.github.io/claude-code-history-viewer/) · [Download](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [Report Bug](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[Website](https://rxg9527.github.io/claude-code-history-viewer/) · [Download](https://github.com/rxg9527/claude-code-history-viewer/releases) · [Report Bug](https://github.com/rxg9527/claude-code-history-viewer/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -38,20 +38,18 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
 
 | Platform | Download |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| macOS (Universal) | [`.dmg`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
-**Homebrew** (macOS):
-
-```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
-```
+> Fork note: this fork does not publish Homebrew packages in the first release phase.
+> Use GitHub Releases or build from source.
 
 **Headless server** — access from any browser:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://...install-server.sh | sh
+# One-line script
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -162,46 +160,13 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 ### Homebrew (macOS)
 
-```bash
-brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
-```
-
-Or install directly with the full cask path:
-
-```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
-```
-
-If you see `No Cask with this name exists`, run the full cask path command above.
-
-To upgrade:
-
-```bash
-brew upgrade --cask claude-code-history-viewer
-```
-
-To uninstall:
-
-```bash
-brew uninstall --cask claude-code-history-viewer
-```
-
-> **Migrating from manual (.dmg) installation?**
-> Remove the existing app before installing via Homebrew to avoid conflicts.
-> Choose **one** installation method — do not mix manual and Homebrew installs.
-> ```bash
-> # Remove the manually installed app first
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # Then install via Homebrew
-> brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
-> ```
+Homebrew distribution is intentionally disabled in this fork's first independent release phase.
+Install from GitHub Releases or build from source instead.
 
 ## Build from Source
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/rxg9527/claude-code-history-viewer.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -227,14 +192,11 @@ Run the viewer as a headless HTTP server — no desktop environment required. Id
 ### Quick Install
 
 ```bash
-# Homebrew (macOS / Linux)
-brew install jhlee0409/tap/cchv-server
-
-# Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+# One-line script
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 ```
 
-Both methods install `cchv-server` to your PATH.
+This installs `cchv-server` to your PATH.
 
 ### Start the Server
 
@@ -262,7 +224,7 @@ Open the URL in your browser — the token is saved automatically.
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
+Download from [Releases](https://github.com/rxg9527/claude-code-history-viewer/releases).
 
 **CLI options:**
 
@@ -394,7 +356,7 @@ Your data stays on your machine.
 |---------|----------|
 | "No Claude data found" | Make sure `~/.claude` exists with conversation history |
 | Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
-| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) |
+| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/rxg9527/claude-code-history-viewer/releases) |
 
 ## Contributing
 
@@ -424,6 +386,6 @@ See [Development Commands](CLAUDE.md#development-commands) for the full list of 
 
 If this project helps you, consider giving it a star!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.com/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=rxg9527/claude-code-history-viewer&type=Date)](https://star-history.com/#rxg9527/claude-code-history-viewer&Date)
 
 </div>

@@ -646,7 +646,7 @@ handler_json!(
 
 /// Special handler: returns URL instead of opening browser on server.
 pub async fn open_github_issues() -> Result<Json<Value>, ApiError> {
-    let url = "https://github.com/jhlee0409/claude-code-history-viewer/issues/new";
+    let url = "https://github.com/rxg9527/claude-code-history-viewer/issues/new";
     Ok(Json(
         serde_json::json!({ "url": url, "note": "Open this URL in your browser" }),
     ))
