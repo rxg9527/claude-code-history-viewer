@@ -407,6 +407,11 @@ export const GlobalSearchModal = ({
         }
     };
 
+    const toRecord = (value: unknown): Record<string, unknown> | null => {
+        if (!value || typeof value !== "object") return null;
+        return value as Record<string, unknown>;
+    };
+
     const pushPreviewPart = (parts: PreviewPart[], kind: PreviewKind, value: unknown): void => {
         const text = stringifyPreviewValue(value).trim();
         if (text) parts.push({ kind, text });
@@ -428,9 +433,8 @@ export const GlobalSearchModal = ({
                 continue;
             }
 
-            if (!item || typeof item !== "object") continue;
-
-            const record = item as Record<string, unknown>;
+            const record = toRecord(item);
+            if (!record) continue;
             const itemType = typeof record.type === "string" ? record.type : "";
 
             if (typeof record.text === "string") {
