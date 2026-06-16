@@ -8,6 +8,8 @@
 
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, and **ForgeCode** — as a desktop app or headless server. 100% offline.
 
+This fork is based on the original project by **JaeHyeok Lee** and keeps the original **MIT License** and copyright notice.
+
 [![Version](https://img.shields.io/github/v/release/rxg9527/claude-code-history-viewer?label=Version&color=blue)](https://github.com/rxg9527/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/rxg9527/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/rxg9527/claude-code-history-viewer/stargazers)
 [![License](https://img.shields.io/github/license/rxg9527/claude-code-history-viewer)](LICENSE)
@@ -32,6 +34,13 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
   <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
 </p>
 
+## This Fork Adds
+
+- Independent releases, updater metadata, issue tracking, and documentation under `rxg9527/claude-code-history-viewer`
+- Homebrew distribution for the headless server: `brew install rxg9527/tap/cchv-server`
+- Codex-focused global search upgrades: scope filters, session-grouped results, structured previews, hover details, and "locate in Project Tree"
+- Safer default Codex conversation filters that hide permission-approval and sub-agent sessions unless you opt in
+
 ## Quick Start
 
 **Desktop app** — download and run:
@@ -42,8 +51,8 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
 | Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
-> Fork note: this fork does not publish Homebrew packages in the first release phase.
-> Use GitHub Releases or build from source.
+> Fork note: this fork publishes a Homebrew formula for the headless server,
+> but does not publish a desktop Homebrew cask. Use GitHub Releases or build from source for the desktop app.
 
 **Headless server** — access from any browser:
 
@@ -117,6 +126,16 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 |---------|-------|
 | **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
 
+### New in v1.13.1
+
+| Feature | Description |
+|---------|-------------|
+| **Structured Global Search** | Provider-aware scope filtering, session-grouped results, better thread titles, structured previews, hover details, and incremental "load more" batches |
+| **Search-to-Tree Navigation** | Clicking a search result can reveal and expand the matching session in Project Tree, including Codex projects that need lazy index loading |
+| **Codex Conversation Filters** | New filters can hide permission-approval and sub-agent Codex conversations; defaults reduce noise in both Project Tree and global search |
+| **Persistent Viewer Filters** | Message viewer filtering state now survives session switches and search-driven navigation |
+| **Search Correctness Fixes** | Reopening global search no longer keeps stale state, empty object previews are hidden, and Codex results prefer native thread titles |
+
 ### New in v1.13.0
 
 | Feature | Description |
@@ -163,8 +182,14 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 ### Homebrew (macOS)
 
-Homebrew distribution is intentionally disabled in this fork's first independent release phase.
-Install from GitHub Releases or build from source instead.
+This fork does not publish a desktop Homebrew cask.
+Install the desktop app from GitHub Releases or build from source instead.
+
+For the headless server, Homebrew is available:
+
+```bash
+brew install rxg9527/tap/cchv-server
+```
 
 ## Build from Source
 
@@ -195,7 +220,10 @@ Run the viewer as a headless HTTP server — no desktop environment required. Id
 ### Quick Install
 
 ```bash
-# One-line script
+# Homebrew (server only)
+brew install rxg9527/tap/cchv-server
+
+# Or one-line script
 curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 ```
 

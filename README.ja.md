@@ -8,6 +8,8 @@
 
 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
 
+この fork は **JaeHyeok Lee** によるオリジナルプロジェクトをベースとしており、元の **MIT License** と著作権表示を維持しています。
+
 [![Version](https://img.shields.io/github/v/release/rxg9527/claude-code-history-viewer?label=Version&color=blue)](https://github.com/rxg9527/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/rxg9527/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/rxg9527/claude-code-history-viewer/stargazers)
 [![License](https://img.shields.io/github/license/rxg9527/claude-code-history-viewer)](LICENSE)
@@ -15,7 +17,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/rxg9527/claude-code-history-viewer)](https://github.com/rxg9527/claude-code-history-viewer/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[ウェブサイト](https://jhlee0409.github.io/claude-code-history-viewer/) · [ダウンロード](https://github.com/rxg9527/claude-code-history-viewer/releases) · [バグ報告](https://github.com/rxg9527/claude-code-history-viewer/issues)
+[ウェブサイト](https://rxg9527.github.io/claude-code-history-viewer/) · [ダウンロード](https://github.com/rxg9527/claude-code-history-viewer/releases) · [バグ報告](https://github.com/rxg9527/claude-code-history-viewer/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -32,6 +34,13 @@
   <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
 </p>
 
+## この fork の追加点
+
+- `rxg9527/claude-code-history-viewer` 配下で独立したリリース、updater メタデータ、Issue 管理、ドキュメントを提供
+- ヘッドレスサーバー向け Homebrew 配布: `brew install rxg9527/tap/cchv-server`
+- Codex 向けグローバル検索強化: 範囲フィルター、セッション単位グループ化、構造化プレビュー、ホバー詳細、「Project Tree で表示」
+- 権限承認会話と sub-agent 会話を既定で隠す、より安全な Codex デフォルトフィルター
+
 ## クイックスタート
 
 **デスクトップアプリ** — ダウンロードして実行：
@@ -42,16 +51,17 @@
 | Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (ポータブル)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
-**Homebrew** (macOS)：
-
-```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
-```
+> この fork ではヘッドレスサーバー向け Homebrew formula は提供しますが、
+> デスクトップ向け Homebrew cask は公開していません。デスクトップアプリは GitHub Releases かソースビルドを使用してください。
 
 **ヘッドレスサーバー** — ブラウザからアクセス：
 
 ```bash
-brew install rxg9527/tap/cchv-server   # または: curl -fsSL https://...install-server.sh | sh
+# Homebrew (server only)
+brew install rxg9527/tap/cchv-server
+
+# またはワンライナー
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -69,7 +79,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 完全な会話履歴、ツール使用、思考プロセス、コスト |
 | **Gemini CLI** | `~/.gemini/history/` | ツール呼び出しを含む会話履歴 |
-| **Antigravity** | `~/.gemini/antigravity/.token-monitor/rpc-cache/v1/` | トークンモニターのセッション、usage スナップショット、分析向け統計 |
+| **Antigravity** | `~/.gemini/antigravity/` | `brain/` の会話状態と `.token-monitor/rpc-cache/v1/` の usage キャッシュ |
 | **Codex CLI** | `~/.codex/sessions/` | エージェント応答を含むセッションロールアウト |
 | **Cline** | `~/.cline/tasks/` | タスクベースの会話履歴 |
 | **Cursor** | `~/.cursor/` | Composerとチャットの会話 |
@@ -113,6 +123,16 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | プロバイダー | メモ |
 |---------|-------|
 | **Antigravity** | 既存の標準プロバイダーパイプラインで読み込まれます。セッションは token monitor のキャッシュから取得され、専用 UI モードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+
+### v1.13.1の新機能
+
+| 機能 | 説明 |
+|------|------|
+| **構造化グローバル検索** | プロバイダー範囲フィルター、セッション単位グループ化、より自然なスレッドタイトル、構造化プレビュー、ホバー詳細、段階的な「さらに読み込む」に対応 |
+| **検索結果から Project Tree へ移動** | 検索結果をクリックすると対象セッションを Project Tree で展開・表示。Codex プロジェクトの遅延インデックス読み込みにも対応 |
+| **Codex 会話フィルター** | 権限承認会話や sub-agent 会話を除外できる Codex 専用フィルターを追加。既定値もノイズを抑える方向に調整 |
+| **ビューアフィルター状態の保持** | Message Viewer のフィルター状態を、セッション切り替えや検索経由の遷移後も保持 |
+| **検索の正確性改善** | グローバル検索を開き直したときの古い状態残りを解消し、空オブジェクトのプレビューを非表示化。Codex 結果はネイティブのスレッド名を優先表示 |
 
 ### v1.13.0の新機能
 
@@ -160,41 +180,14 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 
 ### Homebrew (macOS)
 
-```bash
-brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
-```
+この fork はデスクトップ向け Homebrew cask を公開していません。
+デスクトップアプリは GitHub Releases を使うか、ソースからビルドしてください。
 
-または、完全なCaskパスで直接インストール:
+ヘッドレスサーバーは Homebrew でインストールできます:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install rxg9527/tap/cchv-server
 ```
-
-`No Cask with this name exists` と表示される場合は、上記の完全パスコマンドを使用してください。
-
-アップグレード:
-
-```bash
-brew upgrade --cask claude-code-history-viewer
-```
-
-アンインストール:
-
-```bash
-brew uninstall --cask claude-code-history-viewer
-```
-
-> **手動インストール(.dmg)から移行しますか？**
-> 競合を防ぐため、Homebrewでインストールする前に既存のアプリを削除してください。
-> インストール方法は**1つだけ**使用してください — 手動とHomebrewを混在させないでください。
-> ```bash
-> # 手動インストールしたアプリを先に削除
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # Homebrewでインストール
-> brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
-> ```
 
 ## ソースからビルド
 

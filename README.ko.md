@@ -8,6 +8,8 @@
 
 **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
 
+이 fork는 **JaeHyeok Lee**의 원본 프로젝트를 기반으로 하며, 원래의 **MIT License**와 저작권 고지를 그대로 유지합니다.
+
 [![Version](https://img.shields.io/github/v/release/rxg9527/claude-code-history-viewer?label=Version&color=blue)](https://github.com/rxg9527/claude-code-history-viewer/releases)
 [![Stars](https://img.shields.io/github/stars/rxg9527/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/rxg9527/claude-code-history-viewer/stargazers)
 [![License](https://img.shields.io/github/license/rxg9527/claude-code-history-viewer)](LICENSE)
@@ -15,7 +17,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/rxg9527/claude-code-history-viewer)](https://github.com/rxg9527/claude-code-history-viewer/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[웹사이트](https://jhlee0409.github.io/claude-code-history-viewer/) · [다운로드](https://github.com/rxg9527/claude-code-history-viewer/releases) · [버그 제보](https://github.com/rxg9527/claude-code-history-viewer/issues)
+[웹사이트](https://rxg9527.github.io/claude-code-history-viewer/) · [다운로드](https://github.com/rxg9527/claude-code-history-viewer/releases) · [버그 제보](https://github.com/rxg9527/claude-code-history-viewer/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -32,6 +34,13 @@
   <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
 </p>
 
+## 이 fork에서 추가된 점
+
+- `rxg9527/claude-code-history-viewer` 기준의 독립 릴리스, updater 메타데이터, 이슈 트래킹, 문서 사이트
+- 헤드리스 서버용 Homebrew 배포: `brew install rxg9527/tap/cchv-server`
+- Codex 중심 글로벌 검색 강화: 범위 필터, 세션별 그룹화, 구조화된 미리보기, 호버 상세, "Project Tree에서 찾기"
+- 권한 승인 대화와 sub-agent 대화를 기본적으로 숨기는 더 안전한 Codex 기본 필터
+
 ## 빠른 시작
 
 **데스크톱 앱** — 다운로드하고 실행:
@@ -42,16 +51,17 @@
 | Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (포터블)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
-**Homebrew** (macOS):
-
-```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
-```
+> 이 fork는 헤드리스 서버용 Homebrew formula는 제공하지만,
+> 데스크톱용 Homebrew cask는 제공하지 않습니다. 데스크톱 앱은 GitHub Releases 또는 소스 빌드를 사용하세요.
 
 **헤드리스 서버** — 브라우저에서 접근:
 
 ```bash
-brew install rxg9527/tap/cchv-server   # 또는: curl -fsSL https://...install-server.sh | sh
+# Homebrew (server only)
+brew install rxg9527/tap/cchv-server
+
+# 또는 원라인 설치
+curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -69,7 +79,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 전체 대화 기록, 도구 사용, 사고 과정, 비용 |
 | **Gemini CLI** | `~/.gemini/history/` | 도구 호출이 포함된 대화 기록 |
-| **Antigravity** | `~/.gemini/antigravity/.token-monitor/rpc-cache/v1/` | 토큰 모니터 세션, usage 스냅샷, 분석용 통계 |
+| **Antigravity** | `~/.gemini/antigravity/` | `brain/`의 대화 상태와 `.token-monitor/rpc-cache/v1/`의 usage 캐시 |
 | **Codex CLI** | `~/.codex/sessions/` | 에이전트 응답이 포함된 세션 롤아웃 |
 | **Cline** | `~/.cline/tasks/` | 태스크 기반 대화 기록 |
 | **Cursor** | `~/.cursor/` | Composer 및 채팅 대화 |
@@ -113,6 +123,16 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | 프로바이더 | 설명 |
 |---------|-------|
 | **Antigravity** | 기존 통합 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+
+### v1.13.1 신규
+
+| 기능 | 설명 |
+|------|------|
+| **구조화된 글로벌 검색** | 프로바이더 범위 필터, 세션별 그룹화, 더 자연스러운 스레드 제목, 구조화된 미리보기, 호버 상세, 단계별 "더 불러오기"를 지원 |
+| **검색 결과에서 Project Tree로 이동** | 검색 결과를 클릭하면 해당 세션을 Project Tree에서 자동으로 펼쳐 보여줍니다. Codex 프로젝트의 지연 인덱스 로드도 처리합니다 |
+| **Codex 대화 필터** | 권한 승인 대화와 sub-agent 대화를 숨길 수 있는 Codex 전용 필터를 추가했고, 기본값도 더 조용하게 조정했습니다 |
+| **뷰어 필터 상태 유지** | Message Viewer 필터 상태가 세션 전환이나 검색 경유 이동 이후에도 유지됩니다 |
+| **검색 정확성 개선** | 글로벌 검색 재오픈 시 이전 상태가 남지 않고, 빈 객체 미리보기를 숨기며, Codex 결과는 네이티브 스레드 제목을 우선 사용합니다 |
 
 ### v1.13.0 신규
 
@@ -160,41 +180,14 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 
 ### Homebrew (macOS)
 
-```bash
-brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
-```
+이 fork는 데스크톱용 Homebrew cask를 제공하지 않습니다.
+데스크톱 앱은 GitHub Releases에서 설치하거나 소스에서 직접 빌드하세요.
 
-또는 전체 Cask 경로로 바로 설치:
+헤드리스 서버는 Homebrew로 설치할 수 있습니다:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install rxg9527/tap/cchv-server
 ```
-
-`No Cask with this name exists` 오류가 나오면 위의 전체 경로 명령을 사용하세요.
-
-업그레이드:
-
-```bash
-brew upgrade --cask claude-code-history-viewer
-```
-
-제거:
-
-```bash
-brew uninstall --cask claude-code-history-viewer
-```
-
-> **기존 수동 설치(.dmg)에서 전환하시나요?**
-> 충돌을 방지하려면 기존 앱을 먼저 삭제한 후 Homebrew로 설치하세요.
-> 설치 방식은 **하나만** 사용하세요 — 수동 설치와 Homebrew를 함께 사용하지 마세요.
-> ```bash
-> # 수동 설치된 앱을 먼저 삭제
-> rm -rf "/Applications/Claude Code History Viewer.app"
-> # Homebrew로 설치
-> brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
-> ```
 
 ## 소스에서 빌드
 
