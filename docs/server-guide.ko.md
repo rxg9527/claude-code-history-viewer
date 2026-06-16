@@ -58,7 +58,7 @@ sudo apt update && sudo apt install -y cloudflared
 
 ```bash
 # Homebrew (추천)
-brew install jhlee0409/tap/cchv-server
+brew install rxg9527/tap/cchv-server
 cchv-server --serve
 
 # 또는 소스에서 빌드
@@ -139,7 +139,7 @@ ssh root@203.0.113.50
 
 ```bash
 # 방법 A: Homebrew (macOS / Linux)
-brew install jhlee0409/tap/cchv-server
+brew install rxg9527/tap/cchv-server
 
 # 방법 B: 설치 스크립트
 curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh

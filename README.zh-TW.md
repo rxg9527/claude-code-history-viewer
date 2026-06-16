@@ -51,7 +51,7 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **無頭伺服器** — 從瀏覽器存取：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # 或: curl -fsSL https://...install-server.sh | sh
+brew install rxg9527/tap/cchv-server   # 或: curl -fsSL https://...install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -226,7 +226,7 @@ pnpm tauri:build     # 正式版建置
 
 ```bash
 # Homebrew (macOS / Linux)
-brew install jhlee0409/tap/cchv-server
+brew install rxg9527/tap/cchv-server
 
 # 或一行腳本
 curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh

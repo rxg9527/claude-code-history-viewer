@@ -48,6 +48,9 @@
 **无头服务器** — 从浏览器访问：
 
 ```bash
+# Homebrew（仅 server）
+brew install rxg9527/tap/cchv-server
+
 # 一行脚本
 curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727

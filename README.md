@@ -48,7 +48,10 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
 **Headless server** — access from any browser:
 
 ```bash
-# One-line script
+# Homebrew (server only)
+brew install rxg9527/tap/cchv-server
+
+# Or one-line script
 curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```

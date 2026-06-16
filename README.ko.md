@@ -51,7 +51,7 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 **헤드리스 서버** — 브라우저에서 접근:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # 또는: curl -fsSL https://...install-server.sh | sh
+brew install rxg9527/tap/cchv-server   # 또는: curl -fsSL https://...install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -226,7 +226,7 @@ pnpm tauri:build     # 프로덕션 빌드
 
 ```bash
 # Homebrew (macOS / Linux)
-brew install jhlee0409/tap/cchv-server
+brew install rxg9527/tap/cchv-server
 
 # 또는 원라인 스크립트
 curl -fsSL https://raw.githubusercontent.com/rxg9527/claude-code-history-viewer/main/install-server.sh | sh
