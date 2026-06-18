@@ -37,7 +37,7 @@ This fork is based on the original project by **JaeHyeok Lee** and keeps the ori
 ## This Fork Adds
 
 - Independent releases, updater metadata, issue tracking, and documentation under `rxg9527/claude-code-history-viewer`
-- Homebrew distribution for the headless server: `brew install rxg9527/tap/cchv-server`
+- Homebrew distribution for the macOS desktop app and headless server: `brew install --cask rxg9527/tap/claude-code-history-viewer`, `brew install rxg9527/tap/cchv-server`
 - Codex-focused global search upgrades: scope filters, session-grouped results, structured previews, hover details, and "locate in Project Tree"
 - Safer default Codex conversation filters that hide permission-approval and sub-agent sessions unless you opt in
 
@@ -51,13 +51,13 @@ This fork is based on the original project by **JaeHyeok Lee** and keeps the ori
 | Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
-> Fork note: this fork publishes a Homebrew formula for the headless server,
-> but does not publish a desktop Homebrew cask. Use GitHub Releases or build from source for the desktop app.
+> Fork note: this fork publishes a Homebrew cask for the macOS desktop app and a Homebrew formula for the headless server.
+> macOS desktop builds are ad-hoc signed and not notarized, so first launch may require right-click > Open or approval in Privacy & Security.
 
 **Headless server** — access from any browser:
 
 ```bash
-# Homebrew (server only)
+# Homebrew (server)
 brew install rxg9527/tap/cchv-server
 
 # Or one-line script
@@ -182,10 +182,15 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 ### Homebrew (macOS)
 
-This fork does not publish a desktop Homebrew cask.
-Install the desktop app from GitHub Releases or build from source instead.
+Desktop app:
 
-For the headless server, Homebrew is available:
+```bash
+brew install --cask rxg9527/tap/claude-code-history-viewer
+```
+
+macOS builds from this fork are ad-hoc signed and not notarized. If macOS blocks the first launch, open it with right-click > Open or allow it in System Settings > Privacy & Security.
+
+Headless server:
 
 ```bash
 brew install rxg9527/tap/cchv-server
@@ -220,7 +225,7 @@ Run the viewer as a headless HTTP server — no desktop environment required. Id
 ### Quick Install
 
 ```bash
-# Homebrew (server only)
+# Homebrew (server)
 brew install rxg9527/tap/cchv-server
 
 # Or one-line script

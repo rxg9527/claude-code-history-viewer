@@ -1,164 +1,150 @@
-# Homebrew Cask Maintainer Guide
+# Homebrew Maintainer Guide
+
+This fork publishes two Homebrew entries through `rxg9527/homebrew-tap`:
+
+- Desktop app cask: `brew install --cask rxg9527/tap/claude-code-history-viewer`
+- Headless WebUI server formula: `brew install rxg9527/tap/cchv-server`
 
 ## Architecture
 
+```text
+Tag push
+  -> updater-release.yml
+     -> build desktop app assets
+     -> generate latest.json for the Tauri updater
+     -> publish GitHub Release
+     -> update Casks/claude-code-history-viewer.rb in rxg9527/homebrew-tap
+
+  -> server-release.yml
+     -> build server tarballs
+     -> upload server assets and CHECKSUMS.sha256
+     -> update Formula/cchv-server.rb in rxg9527/homebrew-tap
 ```
-GitHub Release (tag push)
-    ↓ updater-release.yml
-    ├── Build (macOS, Linux, Windows)
-    ├── Generate latest.json (auto-updater)
-    ├── Update Homebrew Cask in jhlee0409/homebrew-tap (direct commit via API)
-    ├── Verify Cask version + sha256
-    └── Publish Release (only after successful Cask sync)
+
+The desktop cask update runs after the GitHub Release is published. If the cask sync fails, the release assets remain available and the workflow failure should be fixed by updating the tap token or cask file.
+
+## Required Secret
+
+`HOMEBREW_TAP_TOKEN` must be configured in this repository's **Repository secrets**.
+
+Create a fine-grained GitHub token with:
+
+- Repository access: `rxg9527/homebrew-tap`
+- Permissions: Contents read and write
+
+Then add it as:
+
+```text
+Settings -> Secrets and variables -> Actions -> Repository secrets
+HOMEBREW_TAP_TOKEN
 ```
 
-### In-app Updater Compatibility
+The same token is used by both desktop cask and server formula automation.
 
-The app has a built-in Tauri auto-updater that checks `latest.json` from GitHub Releases. The Cask includes `auto_updates true` to handle this:
+## Desktop Cask
 
-- The in-app "Update" button works regardless of installation method (Homebrew or manual)
-- The Tauri updater replaces the `.app` bundle in `/Applications/` directly — no conflicts with Homebrew
-- `brew upgrade` skips this app by default (defers to the built-in updater)
-- `brew upgrade --greedy` forces Homebrew to check and update the Cask version
-- Homebrew's version tracking may become stale after an in-app update (cosmetic only, no functional impact)
+Location in the tap repository:
 
-### Components
+```text
+Casks/claude-code-history-viewer.rb
+```
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| Cask definition | `jhlee0409/homebrew-tap/Casks/claude-code-history-viewer.rb` | Homebrew install recipe |
-| Release workflow | `.github/workflows/updater-release.yml` | Computes SHA256, updates Cask directly, verifies, then publishes |
+The release workflow:
 
-### Required Secret
+1. Finds the macOS `.dmg` asset from the current GitHub Release, preferring the universal build.
+2. Downloads the DMG and computes SHA256.
+3. Updates `version`, `sha256`, and `url` in the tap cask.
+4. Commits the change directly to `rxg9527/homebrew-tap`.
 
-`HOMEBREW_TAP_TOKEN` must be configured in the **claude-code-history-viewer** repository settings:
+The cask includes `auto_updates true` because the app also has the built-in Tauri updater. Homebrew may skip normal upgrades unless the user runs `brew upgrade --greedy` or the installed app has not already updated itself.
 
-1. Go to GitHub > Settings > Developer settings > Personal access tokens > Fine-grained tokens
-2. Create a token with:
-   - Repository access: `jhlee0409/homebrew-tap`
-   - Permissions: Contents (Read and write)
-3. Add the token as a repository secret named `HOMEBREW_TAP_TOKEN` in `jhlee0409/claude-code-history-viewer`
+macOS desktop builds in this fork are ad-hoc signed and not notarized. First launch may require right-click > Open or approval in System Settings > Privacy & Security.
 
-## Manual Cask Update
+## Server Formula
 
-If the automated workflow fails, update the Cask manually:
+Location in the tap repository:
 
-### 1. Download the DMG
+```text
+Formula/cchv-server.rb
+```
+
+The server workflow:
+
+1. Builds server tarballs for macOS arm64/x64 and Linux arm64/x64.
+2. Uploads the tarballs to the same GitHub Release.
+3. Generates and uploads `CHECKSUMS.sha256`.
+4. Updates `version` and per-platform SHA256 values in the tap formula.
+
+## Manual Desktop Cask Update
+
+Use this only if workflow automation fails after a release was already published.
 
 ```bash
-VERSION="1.3.0"
-curl -sL "https://github.com/jhlee0409/claude-code-history-viewer/releases/download/v${VERSION}/Claude.Code.History.Viewer_${VERSION}_universal.dmg" \
-  -o /tmp/cchv.dmg
-```
+VERSION="1.13.2"
+ASSET="Claude.Code.History.Viewer_1.13.1_universal.dmg"
+URL="https://github.com/rxg9527/claude-code-history-viewer/releases/download/v${VERSION}/${ASSET}"
 
-### 2. Compute SHA256
-
-```bash
+curl -fsSL "$URL" -o /tmp/cchv.dmg
 shasum -a 256 /tmp/cchv.dmg
-# Output: <sha256>  /tmp/cchv.dmg
 ```
 
-### 3. Update the Cask
+Then update `Casks/claude-code-history-viewer.rb` in the tap repository:
+
+```ruby
+version "1.13.2"
+sha256 "<computed-sha256>"
+url "https://github.com/rxg9527/claude-code-history-viewer/releases/download/v1.13.2/Claude.Code.History.Viewer_1.13.1_universal.dmg"
+```
+
+Commit and push the tap change:
 
 ```bash
-git clone https://github.com/jhlee0409/homebrew-tap.git /tmp/homebrew-tap
-cd /tmp/homebrew-tap
-
-# Edit Casks/claude-code-history-viewer.rb
-# Update: version "<VERSION>"
-# Update: sha256 "<SHA256>"
-
 git add Casks/claude-code-history-viewer.rb
-git commit -m "chore: update claude-code-history-viewer to v${VERSION}"
+git commit -m "chore: update claude-code-history-viewer cask to v${VERSION}"
 git push
-```
-
-### 4. Verify
-
-```bash
-brew tap jhlee0409/tap
-brew info --cask claude-code-history-viewer
-brew audit --cask claude-code-history-viewer
 ```
 
 ## Verification Commands
 
 ```bash
-# Check Cask info
-brew info --cask claude-code-history-viewer
+brew tap rxg9527/tap
 
-# Audit Cask (lint check)
-brew audit --cask claude-code-history-viewer
+brew info --cask rxg9527/tap/claude-code-history-viewer
+brew audit --cask rxg9527/tap/claude-code-history-viewer
+brew install --cask rxg9527/tap/claude-code-history-viewer --dry-run
 
-# Test install (dry run)
-brew install --cask claude-code-history-viewer --dry-run
-
-# Full install
-brew install --cask claude-code-history-viewer
-
-# Verify installed app
-ls "/Applications/Claude Code History Viewer.app"
+brew info rxg9527/tap/cchv-server
+brew audit --formula rxg9527/tap/cchv-server
+brew install rxg9527/tap/cchv-server --dry-run
 ```
 
 ## Troubleshooting
 
-### `HOMEBREW_TAP_TOKEN` not configured
+### `HOMEBREW_TAP_TOKEN` is missing
 
-**Symptom**: Release workflow fails at the Homebrew sync step and release remains draft.
+The Homebrew update job fails with an error saying the secret is required. Add the token under repository-level Actions secrets.
 
-**Fix**: Add the `HOMEBREW_TAP_TOKEN` secret (see Required Secret section above).
+### Cask SHA256 mismatch
 
-### SHA256 mismatch after install
-
-**Symptom**: `brew install` fails with checksum error.
-
-**Fix**: Re-download the DMG and recompute the checksum:
+Re-download the exact DMG URL from the cask and recompute:
 
 ```bash
-curl -sL "<dmg-url>" -o /tmp/cchv.dmg
+curl -fsSL "<dmg-url>" -o /tmp/cchv.dmg
 shasum -a 256 /tmp/cchv.dmg
-# Update the Cask with the correct checksum
 ```
 
-### Cask not found after `brew tap`
+Update the cask with the new checksum and push the tap commit.
 
-**Symptom**: `brew install --cask claude-code-history-viewer` returns "Cask not found".
+### Cask not found
 
-**Fix**:
+Refresh the tap:
 
 ```bash
-# Force re-tap
-brew untap jhlee0409/tap
-brew tap jhlee0409/tap
-
-# Verify Cask exists
-brew info --cask claude-code-history-viewer
+brew untap rxg9527/tap
+brew tap rxg9527/tap
+brew info --cask rxg9527/tap/claude-code-history-viewer
 ```
 
-### Rollback to previous version
+### macOS blocks first launch
 
-```bash
-# In the tap repository
-git log --oneline Casks/claude-code-history-viewer.rb
-git revert <commit-hash>
-git push
-```
-
-## User Installation
-
-```bash
-brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
-```
-
-Upgrade:
-
-```bash
-brew upgrade --cask claude-code-history-viewer
-```
-
-Uninstall:
-
-```bash
-brew uninstall --cask claude-code-history-viewer
-```
+This is expected for ad-hoc signed, non-notarized desktop builds. Use right-click > Open, or allow the app in System Settings > Privacy & Security.

@@ -37,7 +37,7 @@
 ## 이 fork에서 추가된 점
 
 - `rxg9527/claude-code-history-viewer` 기준의 독립 릴리스, updater 메타데이터, 이슈 트래킹, 문서 사이트
-- 헤드리스 서버용 Homebrew 배포: `brew install rxg9527/tap/cchv-server`
+- macOS 데스크톱 앱과 헤드리스 서버용 Homebrew 배포: `brew install --cask rxg9527/tap/claude-code-history-viewer`, `brew install rxg9527/tap/cchv-server`
 - Codex 중심 글로벌 검색 강화: 범위 필터, 세션별 그룹화, 구조화된 미리보기, 호버 상세, "Project Tree에서 찾기"
 - 권한 승인 대화와 sub-agent 대화를 기본적으로 숨기는 더 안전한 Codex 기본 필터
 
@@ -51,13 +51,13 @@
 | Windows (x64) | [`.exe`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) / [`.zip` (포터블)](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 | Linux (x64) | [`.AppImage`](https://github.com/rxg9527/claude-code-history-viewer/releases/latest) |
 
-> 이 fork는 헤드리스 서버용 Homebrew formula는 제공하지만,
-> 데스크톱용 Homebrew cask는 제공하지 않습니다. 데스크톱 앱은 GitHub Releases 또는 소스 빌드를 사용하세요.
+> 이 fork는 macOS 데스크톱용 Homebrew cask와 헤드리스 서버용 Homebrew formula를 제공합니다.
+> macOS 데스크톱 빌드는 ad-hoc 서명이며 notarize되지 않았으므로, 최초 실행 시 우클릭 > 열기 또는 개인정보 보호 및 보안에서 허용이 필요할 수 있습니다.
 
 **헤드리스 서버** — 브라우저에서 접근:
 
 ```bash
-# Homebrew (server only)
+# Homebrew (server)
 brew install rxg9527/tap/cchv-server
 
 # 또는 원라인 설치
@@ -180,10 +180,15 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 
 ### Homebrew (macOS)
 
-이 fork는 데스크톱용 Homebrew cask를 제공하지 않습니다.
-데스크톱 앱은 GitHub Releases에서 설치하거나 소스에서 직접 빌드하세요.
+데스크톱 앱:
 
-헤드리스 서버는 Homebrew로 설치할 수 있습니다:
+```bash
+brew install --cask rxg9527/tap/claude-code-history-viewer
+```
+
+macOS 데스크톱 빌드는 ad-hoc 서명이며 notarize되지 않았습니다. 최초 실행이 차단되면 우클릭 > 열기 또는 시스템 설정 > 개인정보 보호 및 보안에서 허용하세요.
+
+헤드리스 서버:
 
 ```bash
 brew install rxg9527/tap/cchv-server
@@ -218,7 +223,7 @@ pnpm tauri:build     # 프로덕션 빌드
 ### 빠른 설치
 
 ```bash
-# Homebrew (macOS / Linux)
+# Homebrew (server)
 brew install rxg9527/tap/cchv-server
 
 # 또는 원라인 스크립트

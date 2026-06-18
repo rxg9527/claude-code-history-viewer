@@ -20,7 +20,8 @@
   - [server-release.yml](../.github/workflows/server-release.yml)
 - 已有 release 的补救 / 重试流程：
   - [updater-release-retry.yml](../.github/workflows/updater-release-retry.yml)
-- fork 第一阶段已关闭 Homebrew 分发，不再把 Homebrew 作为 release 成功条件
+- Homebrew 分发维护说明：
+  - [HOMEBREW.md](./HOMEBREW.md)
 - fork 自己的 updater 密钥和 secrets 接入说明：
   - [fork-updater-setup.md](./fork-updater-setup.md)
 
@@ -39,7 +40,7 @@ on:
 
 ```bash
 git tag v1.13.1
-git push origin v1.13.1
+git push upstream v1.13.1
 ```
 
 ## 发布前置条件
@@ -54,7 +55,9 @@ git push origin v1.13.1
 其中这个仓库特别依赖：
 
 - Tauri updater 签名相关 secrets
-- Apple 签名 / notarization 相关 secrets（如果保留 macOS 正式分发链）
+- `HOMEBREW_TAP_TOKEN`（用于更新 `rxg9527/homebrew-tap` 的桌面 cask 和 server formula）
+
+macOS 桌面构建当前使用 ad-hoc signing，不依赖 Apple Developer ID 证书和 notarization secrets。首次打开仍可能被 macOS 拦截，需要用户手动允许。
 
 ## 主桌面版发布流程
 
@@ -71,6 +74,7 @@ git push origin v1.13.1
 4. 上传各平台产物
 5. 生成并上传 `latest.json`
 6. 把 release 从 draft 改成 published
+7. 更新 `rxg9527/homebrew-tap` 中的桌面 Homebrew cask
 
 这意味着：
 
@@ -88,6 +92,7 @@ git push origin v1.13.1
 3. 等主 release 不再是 draft
 4. 把 server 资产上传到同一个 GitHub Release
 5. 上传 `CHECKSUMS.sha256` 供后续校验和分发使用
+6. 更新 `rxg9527/homebrew-tap` 中的 server Homebrew formula
 
 ## 一次正常发布的最短步骤
 
@@ -108,7 +113,7 @@ git push
 
 ```bash
 git tag v1.13.1
-git push origin v1.13.1
+git push upstream v1.13.1
 ```
 
 ### 4. 去 GitHub Actions 观察流程
@@ -131,7 +136,10 @@ git push origin v1.13.1
    - server 的 `cchv-server-*.tar.gz`
 3. `latest.json` 是否存在且内容正确
 4. server 的 `CHECKSUMS.sha256` 是否已上传
-5. 两个 Actions workflow 是否都是绿色
+5. Homebrew tap 是否已更新：
+   - `Casks/claude-code-history-viewer.rb`
+   - `Formula/cchv-server.rb`
+6. 两个 Actions workflow 是否都是绿色
 
 ## 发布失败时怎么处理
 

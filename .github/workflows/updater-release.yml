@@ -403,3 +403,85 @@ jobs:
             });
 
             console.log('🎉 Release published!');
+
+  publish-homebrew-cask:
+    needs: generate-updater-metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew cask
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is required to update rxg9527/homebrew-tap"
+            exit 1
+          fi
+
+          RELEASE_REPO="${{ github.repository }}"
+          TAP_REPO="rxg9527/homebrew-tap"
+          CASK_PATH="Casks/claude-code-history-viewer.rb"
+          export RELEASE_REPO
+
+          DMG_NAME=$(gh release view "${GITHUB_REF_NAME}" \
+            --repo "${RELEASE_REPO}" \
+            --json assets \
+            --jq '([.assets[].name | select(endswith(".dmg")) | select(test("universal"))] + [.assets[].name | select(endswith(".dmg")) | select(test("universal") | not)])[0]')
+
+          if [ -z "${DMG_NAME:-}" ] || [ "${DMG_NAME}" = "null" ]; then
+            echo "::error::No macOS DMG asset found in ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          export DMG_NAME
+
+          gh release download "${GITHUB_REF_NAME}" \
+            --repo "${RELEASE_REPO}" \
+            --pattern "${DMG_NAME}" \
+            --dir .
+
+          DMG_SHA256=$(sha256sum "${DMG_NAME}" | cut -d' ' -f1)
+          export DMG_SHA256
+          DMG_URL=$(python3 -c "
+          import os
+          from urllib.parse import quote
+          repo = os.environ['RELEASE_REPO']
+          tag = os.environ['GITHUB_REF_NAME']
+          name = os.environ['DMG_NAME']
+          print(f'https://github.com/{repo}/releases/download/{tag}/{quote(name)}')
+          ")
+          export DMG_URL
+
+          gh api "repos/${TAP_REPO}/contents/${CASK_PATH}" --jq '.content' | base64 -d > claude-code-history-viewer.rb
+          FILE_SHA=$(gh api "repos/${TAP_REPO}/contents/${CASK_PATH}" --jq '.sha')
+
+          python3 -c "
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path('claude-code-history-viewer.rb')
+          content = path.read_text()
+          replacements = [
+              (r'version \".*?\"', f'version \"{os.environ[\"VERSION\"]}\"'),
+              (r'sha256 \".*?\"', f'sha256 \"{os.environ[\"DMG_SHA256\"]}\"'),
+              (r'url \".*?\"', f'url \"{os.environ[\"DMG_URL\"]}\"'),
+          ]
+          for pattern, value in replacements:
+              content, count = re.subn(pattern, value, content, count=1)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one match for {pattern}, got {count}')
+          path.write_text(content)
+          "
+
+          gh api "repos/${TAP_REPO}/contents/${CASK_PATH}" \
+            -X PUT \
+            -f message="chore: update claude-code-history-viewer cask to v${VERSION}" \
+            -f content="$(base64 -w0 < claude-code-history-viewer.rb)" \
+            -f sha="${FILE_SHA}"
