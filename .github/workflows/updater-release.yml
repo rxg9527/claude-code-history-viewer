@@ -452,9 +452,10 @@ jobs:
           import os
           from urllib.parse import quote
           repo = os.environ['RELEASE_REPO']
-          tag = os.environ['GITHUB_REF_NAME']
+          version = os.environ['VERSION']
           name = os.environ['DMG_NAME']
-          print(f'https://github.com/{repo}/releases/download/{tag}/{quote(name)}')
+          asset_path = quote(name).replace(version, '#{version}')
+          print(f'https://github.com/{repo}/releases/download/v#{{version}}/{asset_path}')
           ")
           export DMG_URL
 

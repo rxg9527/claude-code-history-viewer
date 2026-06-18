@@ -56,6 +56,8 @@ The release workflow:
 3. Updates `version`, `sha256`, and `url` in the tap cask.
 4. Commits the change directly to `rxg9527/homebrew-tap`.
 
+The generated cask URL keeps `v#{version}` in the release path so Homebrew can audit the cask as versioned.
+
 The cask includes `auto_updates true` because the app also has the built-in Tauri updater. Homebrew may skip normal upgrades unless the user runs `brew upgrade --greedy` or the installed app has not already updated itself.
 
 macOS desktop builds in this fork are ad-hoc signed and not notarized. First launch may require right-click > Open or approval in System Settings > Privacy & Security.
@@ -93,7 +95,7 @@ Then update `Casks/claude-code-history-viewer.rb` in the tap repository:
 ```ruby
 version "1.13.2"
 sha256 "<computed-sha256>"
-url "https://github.com/rxg9527/claude-code-history-viewer/releases/download/v1.13.2/Claude.Code.History.Viewer_1.13.1_universal.dmg"
+url "https://github.com/rxg9527/claude-code-history-viewer/releases/download/v#{version}/Claude.Code.History.Viewer_1.13.1_universal.dmg"
 ```
 
 Commit and push the tap change:
